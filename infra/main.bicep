@@ -148,15 +148,6 @@ module openaiRoleUser 'core/security/role.bicep' = if (!empty(principalId)) {
   }
 }
 
-module openaiRoleBackend 'core/security/role.bicep' = {
-  scope: rg
-  name: 'openai-role-backend'
-  params: {
-    principalId: flow.outputs.identityPrincipalId
-    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' //Cognitive Services OpenAI User
-    principalType: 'ServicePrincipal'
-  }
-}
 
 module userRoleDataScientist 'core/security/role.bicep' = {
   name: 'user-role-data-scientist'
@@ -188,15 +179,6 @@ module userAiSearchRole 'core/security/role.bicep' = if (!empty(principalId)) {
   }
 }
 
-module aiSearchRole 'core/security/role.bicep' = {
-  scope: rg
-  name: 'ai-search-index-data-contributor'
-  params: {
-    principalId: flow.outputs.identityPrincipalId
-    roleDefinitionId: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' //Search Index Data Contributor
-    principalType: 'ServicePrincipal'
-  }
-}
 
 module userAiSearchServiceContributor 'core/security/role.bicep' = if (!empty(principalId)) {
   scope: rg
@@ -208,15 +190,35 @@ module userAiSearchServiceContributor 'core/security/role.bicep' = if (!empty(pr
   }
 }
 
-module aiSearchServiceContributor 'core/security/role.bicep' = {
-  scope: rg
-  name: 'ai-search-service-contributor'
-  params: {
-    principalId: flow.outputs.identityPrincipalId
-    roleDefinitionId: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' //Search Service Contributor
-    principalType: 'ServicePrincipal'
-  }
-}
+// module openaiRoleBackend 'core/security/role.bicep' = {
+//   scope: rg
+//   name: 'openai-role-backend'
+//   params: {
+//     principalId: flow.outputs.identityPrincipalId
+//     roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' //Cognitive Services OpenAI User
+//     principalType: 'ServicePrincipal'
+//   }
+// }
+
+// module aiSearchServiceContributor 'core/security/role.bicep' = {
+//   scope: rg
+//   name: 'ai-search-service-contributor'
+//   params: {
+//     principalId: flow.outputs.identityPrincipalId
+//     roleDefinitionId: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' //Search Service Contributor
+//     principalType: 'ServicePrincipal'
+//   }
+// }
+
+// module aiSearchRole 'core/security/role.bicep' = {
+//   scope: rg
+//   name: 'ai-search-index-data-contributor'
+//   params: {
+//     principalId: flow.outputs.identityPrincipalId
+//     roleDefinitionId: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' //Search Index Data Contributor
+//     principalType: 'ServicePrincipal'
+//   }
+// }
 
 // output the names of the resources
 output AZURE_TENANT_ID string = tenant().tenantId
