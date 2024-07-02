@@ -1,4 +1,4 @@
-# Project
+# RAG with Promptflow Project
 
 This repository has been initialized with a template for a Retrieval Augmented Generation (RAG) with Promptflow project to help you get started.
 
