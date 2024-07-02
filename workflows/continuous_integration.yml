@@ -1,0 +1,256 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - '**.md' 
+
+jobs:
+  setup-env-vars:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: rag-project    
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check GitHub env variables
+        run: |
+          if [ -z "${{ vars.AZURE_ENV_NAME }}" ] || [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
+            echo "Make sure AZURE_ENV_NAME, AZURE_SUBSCRIPTION_ID, AZURE_LOCATION and AZURE_CREDENTIALS are set in the GitHub environment."
+            exit 1
+          else
+            echo "AZURE_ENV_NAME is set to ${{ vars.AZURE_ENV_NAME }}"
+          fi
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${{ env.IMAGE_NAME }}:${{ github.sha }}" > variables.env
+
+      - name: Install azd
+        uses: Azure/setup-azd@v1.0.0
+
+      - name: Get azd env variables
+        run: |
+          echo "Logging to AZD..."
+          AZURE_CREDENTIALS=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .)
+          CLIENT_ID=$(echo $AZURE_CREDENTIALS | jq -r .clientId)
+          CLIENT_SECRET=$(echo $AZURE_CREDENTIALS | jq -r .clientSecret)
+          TENANT_ID=$(echo $AZURE_CREDENTIALS | jq -r .tenantId)
+          azd auth login --client-id $CLIENT_ID --client-secret $CLIENT_SECRET --tenant-id $TENANT_ID        
+
+          SUBSCRIPTION_ID=${{ vars.AZURE_SUBSCRIPTION_ID }}
+          echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID" >> variables.env
+
+          LOCATION=${{ vars.AZURE_LOCATION }}
+          echo "LOCATION=$LOCATION" >> variables.env          
+
+          azd init -e ${{ vars.AZURE_ENV_NAME }} -l $LOCATION -s $SUBSCRIPTION_ID
+          azd env refresh
+          echo "azd ${{ vars.AZURE_ENV_NAME }} environment variables"
+
+          AZURE_SEARCH_ENDPOINT=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_SEARCH_ENDPOINT | cut -d'=' -f2 | tr -d '"')
+          echo "AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT" >> variables.env
+
+          AZURE_CONTAINER_REGISTRY_NAME=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_CONTAINER_REGISTRY_NAME | cut -d'=' -f2 | tr -d '"')
+          echo "AZURE_CONTAINER_REGISTRY_NAME=$AZURE_CONTAINER_REGISTRY_NAME" >> variables.env
+
+          AZURE_EMBEDDING_NAME=text-embedding-ada-002
+          echo "AZURE_EMBEDDING_NAME=$AZURE_EMBEDDING_NAME" >> variables.env
+
+          AZURE_OPENAI_API_VERSION=2024-02-15-preview
+          echo "AZURE_OPENAI_API_VERSION=$AZURE_OPENAI_API_VERSION" >> variables.env
+
+          AZURE_OPENAI_ENDPOINT=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_OPENAI_ENDPOINT | cut -d'=' -f2 | tr -d '"')
+          echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" >> variables.env
+
+          AZURE_DEPLOYMENT_NAME=gpt-4
+          echo "AZURE_DEPLOYMENT_NAME=$AZURE_DEPLOYMENT_NAME" >> variables.env
+
+      - name: Upload variables
+        uses: actions/upload-artifact@v4
+        with:
+          name: variables
+          path: variables.env
+
+  unit-testing:
+    runs-on: ubuntu-latest
+    needs: setup-env-vars    
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.8
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r requirements.txt              
+
+      - name: Test with pytest
+        env:
+          PYTHONPATH: flow
+          PYTHONWARNINGS: ignore::DeprecationWarning,ignore::RemovedInMarshmallow4Warning
+        run: pytest tests/ --doctest-modules --junitxml=junit/test-results-3.8.xml
+
+      - name: Upload pytest test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-3.8
+          path: junit/test-results-3.8.xml
+        if: always()
+
+  build-and-evaluate-flow:
+    needs: [setup-env-vars, unit-testing]
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+
+      - name: Download variables
+        uses: actions/download-artifact@v4
+        with:
+          name: variables
+          path: .
+
+      - name: Load variables
+        run: |
+          source variables.env
+          echo "SUBSCRIPTION_ID is $SUBSCRIPTION_ID"
+          echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID" >> $GITHUB_ENV
+          echo "LOCATION is $LOCATION"
+          echo "LOCATION=$LOCATION" >> $GITHUB_ENV
+          echo "AZURE_SEARCH_ENDPOINT is $AZURE_SEARCH_ENDPOINT"
+          echo "AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT" >> $GITHUB_ENV
+          echo "AZURE_CONTAINER_REGISTRY_NAME is $AZURE_CONTAINER_REGISTRY_NAME"
+          echo "AZURE_CONTAINER_REGISTRY_NAME=$AZURE_CONTAINER_REGISTRY_NAME" >> $GITHUB_ENV
+          echo "AZURE_EMBEDDING_NAME is $AZURE_EMBEDDING_NAME"
+          echo "AZURE_EMBEDDING_NAME=$AZURE_EMBEDDING_NAME" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_API_VERSION is $AZURE_OPENAI_API_VERSION"
+          echo "AZURE_OPENAI_API_VERSION=$AZURE_OPENAI_API_VERSION" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_ENDPOINT is $AZURE_OPENAI_ENDPOINT"
+          echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" >> $GITHUB_ENV
+          echo "AZURE_DEPLOYMENT_NAME is $AZURE_DEPLOYMENT_NAME"
+          echo "AZURE_DEPLOYMENT_NAME=$AZURE_DEPLOYMENT_NAME" >> $GITHUB_ENV
+          echo "IMAGE_TAG is $IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.8
+    
+      - name: Install Promptflow CLI
+        run: |
+          python -m pip install --upgrade pip
+          pip install promptflow --upgrade
+          pf --version  
+
+      - name: Install required dependencies
+        run: pip install -r flow/requirements.txt
+
+      - name: Create flow docker files
+        run: |
+          # reference: https://github.com/microsoft/promptflow/tree/main/examples/tutorials/flow-deploy/azure-app-service
+          pf flow build --source flow --output dist --format docker
+          mkdir -p dist/connections
+          touch dist/connections/placeholder
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Build docker image
+        run: |
+          echo "IMAGE_TAG is $IMAGE_TAG"
+          docker build dist -t $IMAGE_TAG
+          
+      - name: Start flow
+        run: |
+          docker run -d -p 8080:8080 \
+            -e PROMPTFLOW_WORKER_NUM=8 \
+            -e PROMPTFLOW_SERVING_ENGINE=fastapi \
+            -e AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT \
+            -e AZURE_EMBEDDING_NAME=$AZURE_EMBEDDING_NAME \
+            -e AZURE_OPENAI_API_VERSION=$AZURE_OPENAI_API_VERSION \
+            -e AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT \
+            -e AZURE_DEPLOYMENT_NAME=$AZURE_DEPLOYMENT_NAME \
+            $IMAGE_TAG        
+
+      - name: Evaluate Flow
+        run: |
+          echo "TODO: run evaluation flow"    
+
+  register-flow:
+    needs: build-and-evaluate-flow    
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Download variables
+        uses: actions/download-artifact@v4
+        with:
+          name: variables
+          path: .
+
+      - name: Load variables
+        run: |
+          source variables.env
+          echo "SUBSCRIPTION_ID is $SUBSCRIPTION_ID"
+          echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID" >> $GITHUB_ENV
+          echo "LOCATION is $LOCATION"
+          echo "LOCATION=$LOCATION" >> $GITHUB_ENV
+          echo "AZURE_SEARCH_ENDPOINT is $AZURE_SEARCH_ENDPOINT"
+          echo "AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT" >> $GITHUB_ENV
+          echo "AZURE_CONTAINER_REGISTRY_NAME is $AZURE_CONTAINER_REGISTRY_NAME"
+          echo "AZURE_CONTAINER_REGISTRY_NAME=$AZURE_CONTAINER_REGISTRY_NAME" >> $GITHUB_ENV
+          echo "AZURE_EMBEDDING_NAME is $AZURE_EMBEDDING_NAME"
+          echo "AZURE_EMBEDDING_NAME=$AZURE_EMBEDDING_NAME" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_API_VERSION is $AZURE_OPENAI_API_VERSION"
+          echo "AZURE_OPENAI_API_VERSION=$AZURE_OPENAI_API_VERSION" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_ENDPOINT is $AZURE_OPENAI_ENDPOINT"
+          echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" >> $GITHUB_ENV
+          echo "AZURE_DEPLOYMENT_NAME is $AZURE_DEPLOYMENT_NAME"
+          echo "AZURE_DEPLOYMENT_NAME=$AZURE_DEPLOYMENT_NAME" >> $GITHUB_ENV
+          echo "IMAGE_TAG is $IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/ 
+
+      - name: Build docker image
+        run: |
+          docker build dist -t $IMAGE_TAG
+            
+      - name: Publish docker image to ACR
+        run: |
+          az acr login --name $AZURE_CONTAINER_REGISTRY_NAME
+          docker tag $IMAGE_TAG $AZURE_CONTAINER_REGISTRY_NAME.azurecr.io/$IMAGE_TAG
+          docker push $AZURE_CONTAINER_REGISTRY_NAME.azurecr.io/$IMAGE_TAG
+
+      - name: Trigger CD Workflow
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/continuous_deployment_dev.yml/dispatches \
+            -d '{"ref":"develop","inputs":{"image_tag":"'"$IMAGE_TAG"'"}}'
