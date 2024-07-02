@@ -1,5 +1,9 @@
 name: CI Pipeline
 
+permissions:
+  contents: read
+  actions: write  
+
 on:
   push:
     branches:
@@ -46,6 +50,10 @@ jobs:
           echo "LOCATION=$LOCATION" >> variables.env          
 
           azd init -e ${{ vars.AZURE_ENV_NAME }} -l $LOCATION -s $SUBSCRIPTION_ID
+
+          # check if provisioned if not provision
+          azd provision --no-prompt
+
           azd env refresh
           echo "azd ${{ vars.AZURE_ENV_NAME }} environment variables"
 

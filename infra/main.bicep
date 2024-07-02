@@ -85,6 +85,20 @@ module appServicePlan './core/host/appserviceplan.bicep' =  {
   }
 }
 
+module storage './core/storage/storage-account.bicep' = {
+  name: 'storage'
+  scope: rg
+  params: {
+    name: !empty(storageAccountName) ? '${storageAccountName}flow' : '${abbrs.storageStorageAccounts}${resourceToken}flow'
+    location: location
+    tags: tags
+    publicNetworkAccess: 'Enabled'
+    allowBlobPublicAccess: false
+    supportsHttpsTrafficOnly: true
+    defaultToOAuthAuthentication: true
+  }  
+}
+
 module flow './core/host/functions.bicep' = {
   name: 'flow'
   scope: rg
