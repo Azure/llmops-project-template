@@ -78,8 +78,8 @@ module appServicePlan './core/host/appserviceplan.bicep' =  {
     location: location
     tags: tags
     sku: {
-      name: 'Y1'
-      tier: 'Dynamic'
+      name: 'S1'
+      tier: 'Standard'
     }
     kind: 'linux'
   }
