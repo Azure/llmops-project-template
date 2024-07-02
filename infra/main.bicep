@@ -85,8 +85,8 @@ module appServicePlan './core/host/appserviceplan.bicep' =  {
   }
 }
 
-module storage './core/storage/storage-account.bicep' = {
-  name: 'storage'
+module functionStorage './core/storage/storage-account.bicep' = {
+  name: 'function-storage'
   scope: rg
   params: {
     name: !empty(storageAccountName) ? '${storageAccountName}flow' : '${abbrs.storageStorageAccounts}${resourceToken}flow'
@@ -112,9 +112,7 @@ module flow './core/host/functions.bicep' = {
     applicationInsightsName: !empty(appInsightsName) ? appInsightsName : '${abbrs.insightsComponents}${resourceToken}'
     appServicePlanId: appServicePlan.outputs.id
     keyVaultName: keyVaultName
-    storageAccountName: !empty(storageAccountName)
-      ? '${storageAccountName}flow'
-      : '${abbrs.storageStorageAccounts}${resourceToken}flow'
+    storageAccountName: functionStorage.outputs.name
       runtimeName: 'custom'
       runtimeVersion: ''
   }
