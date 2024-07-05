@@ -13,3 +13,5 @@ param appServiceName = readEnvironmentVariable('AZURE_APP_SERVICE_NAME', '')
 
 param openAiName = readEnvironmentVariable('AZURE_OPENAI_NAME', '')
 param searchServiceName = readEnvironmentVariable('AZURE_SEARCH_NAME', '')
+
+param keyVaultName = readEnvironmentVariable('AZURE_KEY_VAULT_NAME', '')
