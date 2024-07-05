@@ -38,7 +38,7 @@ login_status=$(azd auth login --check-status)
 if [[ "$login_status" == *"Not logged in"* ]]; then
   echo "Not logged in to the Azure Developer CLI, initiating login process..."
   # Command to log in to Azure
-  azd auth login
+  azd auth login --use-device-code
 else
   echo "Already logged in to Azure Developer CLI."
 fi
@@ -50,7 +50,7 @@ EXPIRED_TOKEN=$(az ad signed-in-user show --query 'id' -o tsv 2>/dev/null || tru
 
 if [[ -z "$EXPIRED_TOKEN" ]]; then
     echo "Not logged in to Azure, initiating login process..."
-    az login --scope https://graph.microsoft.com/.default -o none
+    az login --scope https://graph.microsoft.com/.default -o none --use-device-code
 else
     echo "Already logged in to the Azure (az) CLI."
 fi
