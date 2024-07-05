@@ -9,7 +9,7 @@ param principalType = readEnvironmentVariable('AZURE_PRINCIPAL_TYPE', 'ServicePr
 
 param aiHubName = readEnvironmentVariable('AZUREAI_HUB_NAME', '')
 param aiProjectName = readEnvironmentVariable('AZUREAI_PROJECT_NAME', '')
-param functionAppName = readEnvironmentVariable('AZURE_FUNCTION_APP_NAME', '')
+param appServiceName = readEnvironmentVariable('AZURE_APP_SERVICE_NAME', '')
 
 param openAiName = readEnvironmentVariable('AZURE_OPENAI_NAME', '')
 param searchServiceName = readEnvironmentVariable('AZURE_SEARCH_NAME', '')

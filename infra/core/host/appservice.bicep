@@ -11,11 +11,12 @@ param managedIdentity bool = !empty(keyVaultName)
 
 // Runtime Properties
 @allowed([
-  'dotnet', 'dotnetcore', 'dotnet-isolated', 'node', 'python', 'java', 'powershell', 'custom'
+  'dotnet', 'dotnetcore', 'dotnet-isolated', 'node', 'python', 'java', 'powershell', 'DOCKER'
 ])
 param runtimeName string
-param runtimeNameAndVersion string = '${runtimeName}|${runtimeVersion}'
 param runtimeVersion string
+param runtimeNameAndVersion string = '${runtimeName}|${runtimeVersion}'
+
 
 // Microsoft.Web/sites Properties
 param kind string = 'app,linux'

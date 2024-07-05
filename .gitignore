@@ -1,4 +1,5 @@
 local/
+dist/
 
 # Python
 *.py[cod]

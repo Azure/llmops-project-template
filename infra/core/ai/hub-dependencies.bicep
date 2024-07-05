@@ -134,11 +134,9 @@ module cognitiveServices '../ai/cognitiveservices.bicep' = {
   }
 }
 
-// NN: Location hardcoded for Azure AI Search (semantic ranker)
-//     TODO: refactor into environment variables
 module search '../search/search-services.bicep' =
   if (!empty(searchName)) {
-    name: 'search'
+    name: location
     params: {
       location: 'eastus'
       tags: tags

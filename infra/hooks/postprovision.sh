@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Check if running in GitHub Workspace
 if [ -z "$GITHUB_WORKSPACE" ]; then
@@ -24,9 +24,9 @@ fi
 
 # Set additional environment variables expected by app
 # TODO: Standardize these and remove need for setting here
-azd env set AZURE_OPENAI_API_VERSION 2023-03-15-preview
-azd env set AZURE_OPENAI_CHAT_DEPLOYMENT gpt-35-turbo
-azd env set AZURE_SEARCH_ENDPOINT $AZURE_SEARCH_ENDPOINT
+# azd env set AZURE_OPENAI_API_VERSION 2023-03-15-preview
+# azd env set AZURE_OPENAI_CHAT_DEPLOYMENT gpt-35-turbo
+# azd env set AZURE_SEARCH_ENDPOINT $AZURE_SEARCH_ENDPOINT
 
 # Output environment variables to .env file using azd env get-values
 azd env get-values >.env
@@ -44,7 +44,7 @@ ipython kernel install --name=python3 --user > /dev/null # Configure the IPython
 jupyter kernelspec list > /dev/null                      # Verify kernelspec list isn't empty
 echo "--- ✅ | 2. Post-provisioning - ready execute notebooks ---"
 
-if [ $indexSampleData = "true"]; then
+if [ $indexSampleData = "true" ]; then
     echo "Populating sample data ...."
     jupyter nbconvert --execute --to python --ExecutePreprocessor.timeout=-1 data/sample-documents-indexing.ipynb > /dev/null
     echo "--- ✅ | 3. Post-provisioning - populated data ---"

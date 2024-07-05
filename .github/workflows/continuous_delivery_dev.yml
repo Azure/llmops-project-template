@@ -1,0 +1,136 @@
+name: CD Dev Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag'
+        required: true
+  
+jobs:
+  provision-and-deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      AZURE_DEV_COLLECT_TELEMETRY: no
+
+    steps:
+      - name: Check repository
+        run: |
+          if [[ "${{ github.repository }}" == "azure/llmops-project-template" ]]; then
+            echo "This workflow is disabled for llmops-project repository."
+            exit 0
+          fi            
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install azd
+        uses: Azure/setup-azd@v1.0.0
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: az Login
+        run: |
+          info=$(echo $AZURE_CREDENTIALS | jq -r '.')
+          echo "::add-mask::$(echo $info | jq -r '.clientSecret')"
+          az login \
+            --service-principal \
+            --username "$(echo $info | jq -r '.clientId')" \
+            --password "$(echo $info | jq -r '.clientSecret')" \
+            --tenant "$(echo $info | jq -r '.tenantId')"
+        shell: bash
+
+      - name: Set az account
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az account set --subscription ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: azd Login
+        run: |
+          info=$(echo $AZURE_CREDENTIALS | jq -r '.')
+          echo "::add-mask::$(echo $info | jq -r '.clientSecret')"
+          azd auth login \
+            --client-id "$(echo $info | jq -r '.clientId')" \
+            --client-secret "$(echo $info | jq -r '.clientSecret')" \
+            --tenant-id "$(echo $info | jq -r '.tenantId')"
+        shell: bash  
+
+      - name: Provision Infrastructure
+        run: |
+          if [ ! -d ".azure" ]; then
+            echo "Initializing azd environment"
+            azd init -e $AZURE_ENV_NAME -l $AZURE_LOCATION -s $AZURE_SUBSCRIPTION_ID
+          fi        
+          azd provision --no-prompt
+        env:
+          AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get azd env variables
+        run: |
+
+          echo "AZURE_SUBSCRIPTION_ID is $AZURE_SUBSCRIPTION_ID"
+          echo "AZURE_LOCATION is $AZURE_LOCATION"
+          echo "AZURE_ENV_NAME is $AZURE_ENV_NAME"
+
+          if [ ! -d ".azure" ]; then
+            echo "Initializing azd environment"
+            azd init -e $AZURE_ENV_NAME -l $AZURE_LOCATION -s $AZURE_SUBSCRIPTION_ID
+          fi
+
+          azd env refresh
+          echo "azd $AZURE_ENV_NAME environment variables"
+
+          echo "AZURE_ENV_NAME is $AZURE_ENV_NAME"
+          echo "AZURE_LOCATION is $AZURE_LOCATION"
+          echo "AZURE_SUBSCRIPTION_ID is $AZURE_SUBSCRIPTION_ID"
+
+          AZURE_CONTAINER_REGISTRY_NAME=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_CONTAINER_REGISTRY_NAME | cut -d'=' -f2 | tr -d '"')
+          echo "AZURE_CONTAINER_REGISTRY_NAME is $AZURE_CONTAINER_REGISTRY_NAME"
+          echo "AZURE_CONTAINER_REGISTRY_NAME=$AZURE_CONTAINER_REGISTRY_NAME" >> $GITHUB_ENV
+
+          AZURE_APP_SERVICE_NAME=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_APP_SERVICE_NAME | cut -d'=' -f2 | tr -d '"')
+          echo "AZURE_APP_SERVICE_NAME is $AZURE_APP_SERVICE_NAME"
+          echo "AZURE_APP_SERVICE_NAME=$AZURE_APP_SERVICE_NAME" >> $GITHUB_ENV
+
+          AZURE_RESOURCE_GROUP=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_RESOURCE_GROUP | cut -d'=' -f2 | tr -d '"')
+          echo "AZURE_RESOURCE_GROUP is $AZURE_RESOURCE_GROUP"
+          echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP" >> $GITHUB_ENV
+
+      - name: Deploy to Azure App Service
+        run: |
+          echo "AZURE_CONTAINER_REGISTRY_NAME is $AZURE_CONTAINER_REGISTRY_NAME"
+          echo "AZURE_APP_SERVICE_NAME is $AZURE_APP_SERVICE_NAME"
+          echo "AZURE_RESOURCE_GROUP is $AZURE_RESOURCE_GROUP"
+          echo "IMAGE_TAG is ${{ github.event.inputs.image_tag }}"
+
+          # Enable admin user for ACR
+          az acr update --name $AZURE_CONTAINER_REGISTRY_NAME --admin-enabled true          
+
+          # Configure Web App to use ACR
+          ACR_LOGIN_SERVER=$(az acr show --name $AZURE_CONTAINER_REGISTRY_NAME --query loginServer --output tsv)
+          az webapp config container set --name $AZURE_APP_SERVICE_NAME --resource-group $AZURE_RESOURCE_GROUP --container-image-name $ACR_LOGIN_SERVER/${{ github.event.inputs.image_tag }} --container-registry-url https://$ACR_LOGIN_SERVER
+
+          # Set ACR credentials
+          ACR_USERNAME=$(az acr credential show --name $AZURE_CONTAINER_REGISTRY_NAME --query username --output tsv)
+          ACR_PASSWORD=$(az acr credential show --name $AZURE_CONTAINER_REGISTRY_NAME --query passwords[0].value --output tsv)
+          az webapp config container set --name $AZURE_APP_SERVICE_NAME --resource-group $AZURE_RESOURCE_GROUP --docker-registry-server-user $ACR_USERNAME --docker-registry-server-password $ACR_PASSWORD
+
+          # Restart Web App
+          az webapp restart --name $AZURE_APP_SERVICE_NAME --resource-group $AZURE_RESOURCE_GROUP
+
+      - name: GitHub Summary Step
+        if: ${{ success() }}
+        run: |
+          echo "Deployment completed successfully! :rocket:" >> $GITHUB_STEP_SUMMARY        
+          deep_link=https://portal.azure.com/#@/resource/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/rg-$AZURE_ENV_NAME/overview
+          echo "🔗 [View Resources Deployed Here]($deep_link)" >> $GITHUB_STEP_SUMMARY

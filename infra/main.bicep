@@ -12,6 +12,7 @@ param location string
 param appInsightsName string = ''
 param openAiName string = ''
 param containerRegistryName string = ''
+param containerRegistryRepositoryName string = 'rag-project'
 param keyVaultName string = ''
 param resourceGroupName string = ''
 param searchServiceName string = ''
@@ -19,54 +20,65 @@ param storageAccountName string = ''
 param aiResourceGroupName string = ''
 param aiProjectName string = ''
 param aiHubName string = ''
+param oaiApiVersion string = '2023-05-15'
+param oaiChatDeployment string = 'gpt-35-turbo'
+param oaiEmbeddingDeployment string = 'text-embedding-ada-002'
+param oaiEmbeddingModel string = 'text-embedding-ada-002'
+
 param logAnalyticsName string = ''
 param appServicePlanName string = ''
-param functionAppName string = ''
+param appServiceName string = ''
 @description('Id of the user or app to assign application roles')
 param principalId string = ''
 param principalType string = 'ServicePrincipal'
 
-var abbrs = loadJsonContent('./abbreviations.json')
-var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+// Flow parameters
+
+param promptFlowWorkerNum string = '1'
+param promptFlowServingEngine string = 'fastapi'
+
+var _abbrs = loadJsonContent('./abbreviations.json')
+var _resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+var _keyVaultName = !empty(keyVaultName) ? keyVaultName : '${_abbrs.keyVaultVaults}${_resourceToken}'
 
 // tags that should be applied to all resources.
-var tags = {
+var _tags = {
   // Tag all resources with the environment name.
   'azd-env-name': environmentName
 }
 
 // Organize resources in a resource group
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: !empty(resourceGroupName) ? resourceGroupName : '${abbrs.resourcesResourceGroups}${environmentName}'
+  name: !empty(resourceGroupName) ? resourceGroupName : '${_abbrs.resourcesResourceGroups}${environmentName}'
   location: location
-  tags: tags
+  tags: _tags
 }
 
-var openAiConfig = loadYamlContent('./ai.yaml')
-var openAiModelDeployments = array(contains(openAiConfig, 'deployments') ? openAiConfig.deployments : [])
+var _openAiConfig = loadYamlContent('./ai.yaml')
+var _openAiModelDeployments = array(contains(_openAiConfig, 'deployments') ? _openAiConfig.deployments : [])
 
 module ai 'core/host/ai-environment.bicep' = {
   name: 'ai'
   scope: resourceGroup(!empty(aiResourceGroupName) ? aiResourceGroupName : rg.name)
   params: {
     location: location
-    tags: tags
-    hubName: !empty(aiHubName) ? aiHubName : 'ai-hub-${resourceToken}'
-    projectName: !empty(aiProjectName) ? aiProjectName : 'ai-project-${resourceToken}'
+    tags: _tags
+    hubName: !empty(aiHubName) ? aiHubName : 'ai-hub-${_resourceToken}'
+    projectName: !empty(aiProjectName) ? aiProjectName : 'ai-project-${_resourceToken}'
     logAnalyticsName: !empty(logAnalyticsName)
       ? logAnalyticsName
-      : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
-    appInsightsName: !empty(appInsightsName) ? appInsightsName : '${abbrs.insightsComponents}${resourceToken}'
+      : '${_abbrs.operationalInsightsWorkspaces}${_resourceToken}'
+    appInsightsName: !empty(appInsightsName) ? appInsightsName : '${_abbrs.insightsComponents}${_resourceToken}'
     containerRegistryName: !empty(containerRegistryName)
       ? containerRegistryName
-      : '${abbrs.containerRegistryRegistries}${resourceToken}'
-    keyVaultName: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
+      : '${_abbrs.containerRegistryRegistries}${_resourceToken}'
+    keyVaultName: _keyVaultName
     storageAccountName: !empty(storageAccountName)
       ? storageAccountName
-      : '${abbrs.storageStorageAccounts}${resourceToken}'
-    openAiName: !empty(openAiName) ? openAiName : 'aoai-${resourceToken}'
-    openAiModelDeployments: openAiModelDeployments
-    searchName: !empty(searchServiceName) ? searchServiceName : 'srch-${resourceToken}'
+      : '${_abbrs.storageStorageAccounts}${_resourceToken}'
+    openAiName: !empty(openAiName) ? openAiName : 'aoai-${_resourceToken}'
+    openAiModelDeployments: _openAiModelDeployments
+    searchName: !empty(searchServiceName) ? searchServiceName : 'srch-${_resourceToken}'
   }
 }
 
@@ -74,47 +86,44 @@ module appServicePlan './core/host/appserviceplan.bicep' =  {
   name: 'appserviceplan'
   scope: rg
   params: {
-    name: !empty(appServicePlanName) ? resourceGroupName : '${abbrs.webServerFarms}${environmentName}${resourceToken}'
+    name: !empty(appServicePlanName) ? resourceGroupName : '${_abbrs.webServerFarms}${environmentName}${_resourceToken}'
     location: location
-    tags: tags
+    tags: _tags
     sku: {
-      name: 'S1'
-      tier: 'Standard'
+      name: 'P0v3'
+      capacity: 1
     }
     kind: 'linux'
   }
 }
 
-module functionStorage './core/storage/storage-account.bicep' = {
-  name: 'function-storage'
+module appService  'core/host/appservice.bicep'  = {
+  name: 'appService'
   scope: rg
   params: {
-    name: !empty(storageAccountName) ? '${storageAccountName}flow' : '${abbrs.storageStorageAccounts}${resourceToken}flow'
+    name: !empty(appServiceName) ? resourceGroupName : '${_abbrs.webSitesAppService}${environmentName}${_resourceToken}'
+    applicationInsightsName: ai.outputs.appInsightsName
+    runtimeName: 'DOCKER'
+    runtimeVersion: '${containerRegistryRepositoryName}:dummy'
+    keyVaultName: _keyVaultName
     location: location
-    tags: tags
-    publicNetworkAccess: 'Enabled'
-    allowBlobPublicAccess: false
-    supportsHttpsTrafficOnly: true
-    defaultToOAuthAuthentication: true
-  }  
-}
-
-module flow './core/host/functions.bicep' = {
-  name: 'flow'
-  scope: rg
-  params: {
-    name: !empty(functionAppName) ? resourceGroupName : '${abbrs.webSitesFunctions}${environmentName}${resourceToken}'
-    location: location
-    tags: union(tags, { 'azd-service-name': 'flow' })
-    appSettings:{
-        FUNCTIONS_WORKER_RUNTIME: 'custom'
-    }
-    applicationInsightsName: !empty(appInsightsName) ? appInsightsName : '${abbrs.insightsComponents}${resourceToken}'
+    tags: union(_tags, { 'azd-service-name': 'rag-flow' })
     appServicePlanId: appServicePlan.outputs.id
-    keyVaultName: keyVaultName
-    storageAccountName: functionStorage.outputs.name
-      runtimeName: 'custom'
-      runtimeVersion: ''
+    scmDoBuildDuringDeployment: false
+    appSettings: {
+      WEBSITES_ENABLE_APP_SERVICE_STORAGE: false
+      DOCKER_REGISTRY_SERVER_URL: 'https://${ai.outputs.containerRegistryName}.azurecr.io'
+      WEBSITES_PORT: '80'  
+      PROMPTFLOW_WORKER_NUM: promptFlowWorkerNum
+      PROMPTFLOW_SERVING_ENGINE: promptFlowServingEngine
+      AZURE_OPENAI_ENDPOINT: ai.outputs.openAiEndpoint
+      AZURE_OPENAI_CHAT_DEPLOYMENT: oaiChatDeployment
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: oaiEmbeddingDeployment
+      AZURE_OPENAI_EMBEDDING_MODEL: oaiEmbeddingModel
+      AZURE_OPENAI_API_VERSION: oaiApiVersion
+      AZURE_SEARCH_ENDPOINT: ai.outputs.searchEndpoint
+      acrUseManagedIdentityCreds: true
+    }
   }
 }
 
@@ -148,7 +157,6 @@ module openaiRoleUser 'core/security/role.bicep' = if (!empty(principalId)) {
   }
 }
 
-
 module userRoleDataScientist 'core/security/role.bicep' = {
   name: 'user-role-data-scientist'
   scope: rg
@@ -179,7 +187,6 @@ module userAiSearchRole 'core/security/role.bicep' = if (!empty(principalId)) {
   }
 }
 
-
 module userAiSearchServiceContributor 'core/security/role.bicep' = if (!empty(principalId)) {
   scope: rg
   name: 'user-ai-search-service-contributor'
@@ -190,38 +197,50 @@ module userAiSearchServiceContributor 'core/security/role.bicep' = if (!empty(pr
   }
 }
 
-// module openaiRoleBackend 'core/security/role.bicep' = {
-//   scope: rg
-//   name: 'openai-role-backend'
-//   params: {
-//     principalId: flow.outputs.identityPrincipalId
-//     roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' //Cognitive Services OpenAI User
-//     principalType: 'ServicePrincipal'
-//   }
-// }
+module openaiRoleBackend 'core/security/role.bicep' = {
+  scope: rg
+  name: 'openai-role-backend'
+  params: {
+    principalId: appService.outputs.identityPrincipalId
+    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' //Cognitive Services OpenAI User
+    principalType: principalType
+  }
+}
 
-// module aiSearchServiceContributor 'core/security/role.bicep' = {
-//   scope: rg
-//   name: 'ai-search-service-contributor'
-//   params: {
-//     principalId: flow.outputs.identityPrincipalId
-//     roleDefinitionId: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' //Search Service Contributor
-//     principalType: 'ServicePrincipal'
-//   }
-// }
+module aiSearchServiceContributor 'core/security/role.bicep' = {
+  scope: rg
+  name: 'ai-search-service-contributor'
+  params: {
+    principalId: appService.outputs.identityPrincipalId
+    roleDefinitionId: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' //Search Service Contributor
+    principalType: principalType
+  }
+}
 
-// module aiSearchRole 'core/security/role.bicep' = {
-//   scope: rg
-//   name: 'ai-search-index-data-contributor'
-//   params: {
-//     principalId: flow.outputs.identityPrincipalId
-//     roleDefinitionId: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' //Search Index Data Contributor
-//     principalType: 'ServicePrincipal'
-//   }
-// }
+module aiSearchRole 'core/security/role.bicep' = {
+  scope: rg
+  name: 'ai-search-index-data-contributor'
+  params: {
+    principalId: appService.outputs.identityPrincipalId
+    roleDefinitionId: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' //Search Index Data Contributor
+    principalType: principalType
+  }
+}
 
-// output the names of the resources
+module appserviceAcrRolePull 'core/security/role.bicep' = {
+  scope: rg
+  name: 'app-service-acr-role-pull'  
+  params: {
+    principalId: appService.outputs.identityPrincipalId
+    roleDefinitionId: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+    principalType: principalType
+  }
+}
+
+// output for post processing
+
 output AZURE_TENANT_ID string = tenant().tenantId
+output AZURE_SUBSCRIPTION_ID string = subscription().subscriptionId
 output AZURE_RESOURCE_GROUP string = rg.name
 
 output AZUREAI_HUB_NAME string = ai.outputs.hubName
@@ -229,6 +248,10 @@ output AZUREAI_PROJECT_NAME string = ai.outputs.projectName
 
 output AZURE_OPENAI_NAME string = ai.outputs.openAiName
 output AZURE_OPENAI_ENDPOINT string = ai.outputs.openAiEndpoint
+output AZURE_OPENAI_API_VERSION string = oaiApiVersion
+output AZURE_OPENAI_CHAT_DEPLOYMENT string =  oaiChatDeployment
+output AZURE_OPENAI_EMBEDDING_DEPLOYMENT string =  oaiEmbeddingDeployment
+output AZURE_OPENAI_EMBEDDING_MODEL string =  oaiEmbeddingModel
 
 output AZURE_SEARCH_NAME string = ai.outputs.searchName
 output AZURE_SEARCH_ENDPOINT string = ai.outputs.searchEndpoint
@@ -236,5 +259,12 @@ output AZURE_SEARCH_ENDPOINT string = ai.outputs.searchEndpoint
 output AZURE_CONTAINER_REGISTRY_NAME string = ai.outputs.containerRegistryName
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = ai.outputs.containerRegistryEndpoint
 
+output AZURE_CONTAINER_REGISTRY_REPOSITORY_NAME string = containerRegistryRepositoryName
+
+output AZURE_APP_SERVICE_NAME string = appService.outputs.name
+
 output AZURE_KEY_VAULT_NAME string = ai.outputs.keyVaultName
 output AZURE_KEY_VAULT_ENDPOINT string = ai.outputs.keyVaultEndpoint
+
+output PROMPTFLOW_WORKER_NUM string = promptFlowWorkerNum
+output PROMPTFLOW_SERVING_ENGINE string = promptFlowServingEngine

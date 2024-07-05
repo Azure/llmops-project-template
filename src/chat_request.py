@@ -14,7 +14,7 @@ def get_context(question, embedding):
 
 def get_embedding(question: str):
     connection = AzureOpenAIConnection(        
-                    azure_deployment=os.environ["AZURE_EMBEDDING_NAME"],
+                    azure_deployment=os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"],
                     api_version=os.environ["AZURE_OPENAI_API_VERSION"],
                     api_base=os.environ["AZURE_OPENAI_ENDPOINT"]
                     )
@@ -23,7 +23,7 @@ def get_embedding(question: str):
 
     return client.embeddings.create(
             input=question,
-            model=os.environ["AZURE_EMBEDDING_NAME"],
+            model=os.environ["AZURE_OPENAI_EMBEDDING_MODEL"],
         ).data[0].embedding
 @tool
 def get_response(question, chat_history):
@@ -34,7 +34,7 @@ def get_response(question, chat_history):
     print("getting result...")
 
     configuration = AzureOpenAIModelConfiguration(
-        azure_deployment=os.environ["AZURE_DEPLOYMENT_NAME"],
+        azure_deployment=os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"],
         api_version=os.environ["AZURE_OPENAI_API_VERSION"],
         azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"]
     )

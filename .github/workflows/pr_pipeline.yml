@@ -1,16 +1,61 @@
-name: CD QA Pipeline
+name: PR Pipeline
 
 on:
-  push:
+  pull_request:
     branches:
-      - release/*
-    paths-ignore:
-      - '**.md' 
-
+      - develop
+      
 jobs:
-  provision-and-deploy:
+
+  unit-testing:
     runs-on: ubuntu-latest
-    environment: qa
+    environment: dev
+    steps:
+      - name: Check repository
+        run: |
+          if [[ "${{ github.repository }}" == "azure/llmops-project-template" ]]; then
+            echo "This workflow is disabled for llmops-project repository."
+            exit 0
+          fi            
+      - uses: actions/checkout@v4
+      - name: Setup Python 
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+      # Install pip, pytest and project dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r requirements.txt
+      - name: Test with pytest
+        env:
+          PYTHONPATH: src
+          PYTHONWARNINGS: ignore::DeprecationWarning,ignore::RemovedInMarshmallow4Warning
+        run: pytest tests/ --doctest-modules --junitxml=junit/test-results-3.11.xml
+      - name: Upload pytest test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-3.11
+          path: junit/test-results-3.11.xml
+        if: always()
+
+  static-code-analysis:
+    needs: unit-testing
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Finds anti-patterns in code
+        run: |
+          echo "Run Pylint"
+      - name: Run security checks
+        run: |
+          echo "Run Bandit"
+
+  provision-llm-model:
+    needs: static-code-analysis
+    runs-on: ubuntu-latest
+    environment: dev
     env:
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
@@ -57,7 +102,7 @@ jobs:
         uses: azure/CLI@v2
         with:
           inlineScript: |
-            az account set --subscription ${{ env.AZURE_SUBSCRIPTION_ID }}
+            az account set --subscription ${{env.AZURE_SUBSCRIPTION_ID}}
           
       - name: Provision Infrastructure
         run: azd provision --no-prompt
@@ -65,29 +110,22 @@ jobs:
           AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-    
-      - name: Deploy Application
-        run: azd deploy --no-prompt
-        env:
-          AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
-          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}          
-
+      
       - name: GitHub Summary Step
         if: ${{ success() }}
         run: |
           deep_link=https://portal.azure.com/#@/resource/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-${{ vars.AZURE_ENV_NAME }}/overview
           echo "🔗 [View Resources Deployed Here]($deep_link)" >> $GITHUB_STEP_SUMMARY
 
-  evaluate:
-    needs: provision-and-deploy
-    if: ${{ needs.provision-and-deploy.result == 'success' }}
+  evaluate-flow:
+    needs: provision-llm-model
+    if: ${{ needs.provision.result == 'success' }}
     runs-on: ubuntu-latest
-    environment: qa
+    environment: dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Evaluate
+      - name: AI-Based Flow evaluation
         run: |
-          echo "TODO: run QA evaluation"
-        shell: bash          
+          echo "Run AI-Based Flow evaluation"
+        shell: bash

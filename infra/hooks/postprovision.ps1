@@ -30,16 +30,16 @@ if ([string]::IsNullOrEmpty($resourceGroupName) -or [string]::IsNullOrEmpty($ope
 
 # Set additional environment variables expected by app 
 # TODO: Standardize these and remove need for setting here
-azd env set AZURE_OPENAI_API_VERSION 2023-03-15-preview
-azd env set AZURE_OPENAI_CHAT_DEPLOYMENT gpt-35-turbo
-azd env set AZURE_SEARCH_ENDPOINT $AZURE_SEARCH_ENDPOINT
+# azd env set AZURE_OPENAI_API_VERSION 2023-03-15-preview
+# azd env set AZURE_OPENAI_CHAT_DEPLOYMENT gpt-35-turbo
+# azd env set AZURE_SEARCH_ENDPOINT $AZURE_SEARCH_ENDPOINT
 
 # Output environment variables to .env file using azd env get-values
 azd env get-values > .env
 Write-Host "Script execution completed successfully."
 
 Write-Host 'Installing dependencies from "requirements.txt"'
-python -m pip install -r flow/requirements.txt > $null
+python -m pip install -r src/requirements.txt > $null
 
 if ($indexSampleData -eq $true) {
     # populate data

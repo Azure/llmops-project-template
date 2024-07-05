@@ -6,21 +6,21 @@ workflows:
     steps:
       - azd: provision
       
-# hooks:
-#   postprovision:
-#     posix:
-#       shell: sh
-#       continueOnError: false
-#       interactive: true
-#       run: infra/hooks/postprovision.sh
-#     windows:
-#       shell: pwsh
-#       continueOnError: false
-#       interactive: true
-#       run: infra/hooks/postprovision.ps1
+hooks:
+  postprovision:
+    posix:
+      shell: sh
+      continueOnError: false
+      interactive: true
+      run: infra/hooks/postprovision.sh
+    windows:
+      shell: pwsh
+      continueOnError: false
+      interactive: true
+      run: infra/hooks/postprovision.ps1
 
 services:
   rag-flow:
-    project: ./flow
+    project: .
     language: python
-    host: function
+    host: appservice
