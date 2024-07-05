@@ -8,15 +8,10 @@ on:
 jobs:
   
   integration-testing:
+    if: ${{ github.repository != 'Azure/llmops-project-template' }}    
     runs-on: ubuntu-latest
     environment: prod
-    steps:
-      - name: Check repository
-        run: |
-          if [[ "${{ github.repository }}" == "Azure/llmops-project-template" ]]; then
-            echo "This workflow is disabled for llmops-project repository."
-            exit 0
-          fi           
+    steps:      
       - name: Integration Tests
         run: |
           echo "Run PROD Integration Tests"
