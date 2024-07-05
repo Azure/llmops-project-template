@@ -11,17 +11,12 @@ on:
 
 jobs:  
   setup-env-vars:
+    if: ${{ github.repository != 'Azure/llmops-project-template' }}
     runs-on: ubuntu-latest
     environment: dev
     env:
       AZURE_DEV_COLLECT_TELEMETRY: no    
     steps:
-      - name: Check repository
-        run: |
-          if [[ "${{ github.repository }}" == "Azure/llmops-project-template" ]]; then
-            echo "This workflow is disabled for llmops-project repository."
-            exit 0
-          fi      
       - uses: actions/checkout@v4
       - name: Check GitHub env variables
         run: |
@@ -135,7 +130,7 @@ jobs:
           echo "Run Pylint"
 
   build-and-evaluate-flow:
-    needs: [setup-env-vars, unit-testing]
+    needs: [setup-env-vars, unit-testing, code-standard-check]
     runs-on: ubuntu-latest
     environment: dev
     steps:
