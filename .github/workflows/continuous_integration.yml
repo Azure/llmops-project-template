@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Check repository
         run: |
-          if [[ "${{ github.repository }}" == "azure/llmops-project-template" ]]; then
+          if [[ "${{ github.repository }}" == "Azure/llmops-project-template" ]]; then
             echo "This workflow is disabled for llmops-project repository."
             exit 0
           fi      
