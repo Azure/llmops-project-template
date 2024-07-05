@@ -12,12 +12,18 @@ hooks:
       shell: sh
       continueOnError: false
       interactive: true
-      run: infra/hooks/postprovision.sh
+      run: |
+        if [ "$GITHUB_ACTIONS" = "true" ]; then
+          sh infra/hooks/postprovision.sh
+        fi
     windows:
       shell: pwsh
       continueOnError: false
       interactive: true
-      run: infra/hooks/postprovision.ps1
+      run: |
+        if ($env:GITHUB_ACTIONS -eq "true") {
+          ./infra/hooks/postprovision.ps1
+        }
 
 services:
   rag-flow:
