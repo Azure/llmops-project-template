@@ -9,119 +9,85 @@ on:
     branches:
       - develop
 
-jobs:  
-  setup-env-vars:
-    if: ${{ github.repository != 'Azure/llmops-project-template' }}
+jobs:
+
+  setup-env-job:
+    if: ${{ github.repository != 'Azure/llmops-project-template' }}        
     runs-on: ubuntu-latest
     environment: dev
-    env:
-      AZURE_DEV_COLLECT_TELEMETRY: no    
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check GitHub env variables
-        run: |
-          if [ -z "${{ vars.AZURE_ENV_NAME }}" ] || [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
-            echo "Make sure AZURE_ENV_NAME, AZURE_SUBSCRIPTION_ID, AZURE_LOCATION and AZURE_CREDENTIALS are set in the GitHub environment."
-            exit 1
-          else
-            echo "AZURE_ENV_NAME is set to ${{ vars.AZURE_ENV_NAME }}"
-            export AZURE_DEV_COLLECT_TELEMETRY=no            
-          fi
+    outputs:
+      AZUREAI_PROJECT_NAME: ${{ steps.config-env.outputs.AZUREAI_PROJECT_NAME }}
+      AZURE_APP_SERVICE_NAME: ${{ steps.config-env.outputs.AZURE_APP_SERVICE_NAME }}
+      AZURE_APP_SERVICE_PLAN_NAME: ${{ steps.config-env.outputs.AZURE_APP_SERVICE_PLAN_NAME }}
+      AZURE_CONTAINER_REGISTRY_NAME: ${{ steps.config-env.outputs.AZURE_CONTAINER_REGISTRY_NAME }}
+      AZURE_CONTAINER_REPOSITORY_NAME: ${{ steps.config-env.outputs.AZURE_CONTAINER_REPOSITORY_NAME }}
+      AZURE_LOCATION: ${{ steps.config-env.outputs.AZURE_LOCATION }}
+      AZURE_OPENAI_API_VERSION: ${{ steps.config-env.outputs.AZURE_OPENAI_API_VERSION }}
+      AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ steps.config-env.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT }}
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{ steps.config-env.outputs.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}
+      AZURE_OPENAI_EMBEDDING_MODEL: ${{ steps.config-env.outputs.AZURE_OPENAI_EMBEDDING_MODEL }}
+      AZURE_OPENAI_ENDPOINT: ${{ steps.config-env.outputs.AZURE_OPENAI_ENDPOINT }}
+      AZURE_OPENAI_NAME: ${{ steps.config-env.outputs.AZURE_OPENAI_NAME }}
+      AZURE_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}
+      AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZUREAI_RESOURCE_GROUP }}      
+      AZURE_SEARCH_ENDPOINT: ${{ steps.config-env.outputs.AZURE_SEARCH_ENDPOINT }}
+      AZURE_SEARCH_INDEX_SAMPLE_DATA: ${{ steps.config-env.outputs.AZURE_SEARCH_INDEX_SAMPLE_DATA }}
+      AZURE_SEARCH_NAME: ${{ steps.config-env.outputs.AZURE_SEARCH_NAME }}
+      AZURE_SUBSCRIPTION_ID: ${{ steps.config-env.outputs.AZURE_SUBSCRIPTION_ID }} 
+      PROMPTFLOW_SERVING_ENGINE: ${{ steps.config-env.outputs.PROMPTFLOW_SERVING_ENGINE }}
+      PROMPTFLOW_WORKER_NUM: ${{ steps.config-env.outputs.PROMPTFLOW_WORKER_NUM }}
+      AZURE_PRINCIPAL_ID: ${{ steps.config-env.outputs.AZURE_PRINCIPAL_ID }}
+      AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.config-env.outputs.AZURE_STORAGE_ACCOUNT_NAME }}  
+    steps: 
+    - uses: actions/checkout@v4
 
-
-      - name: Install azd
-        uses: Azure/setup-azd@v1.0.0
-
-      - name: Get azd env variables 
-        run: |
-          echo "Logging to AZD..."
-
-          AZURE_CREDENTIALS=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .)
-          CLIENT_ID=$(echo $AZURE_CREDENTIALS | jq -r .clientId)
-          CLIENT_SECRET=$(echo $AZURE_CREDENTIALS | jq -r .clientSecret)
-          TENANT_ID=$(echo $AZURE_CREDENTIALS | jq -r .tenantId)
-
-          azd auth login --client-id $CLIENT_ID --client-secret $CLIENT_SECRET --tenant-id $TENANT_ID        
-
-          SUBSCRIPTION_ID=${{ vars.AZURE_SUBSCRIPTION_ID }}
-          echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID" >> variables.env
-
-          LOCATION=${{ vars.AZURE_LOCATION }}
-          echo "LOCATION=$LOCATION" >> variables.env          
-
-          azd init -e ${{ vars.AZURE_ENV_NAME }} -l $LOCATION -s $SUBSCRIPTION_ID
-
-          # check if provisioned if not provision
-          # azd provision --no-prompt
-
-          azd env refresh
-          echo "azd ${{ vars.AZURE_ENV_NAME }} environment variables"
-
-          AZURE_SEARCH_ENDPOINT=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_SEARCH_ENDPOINT | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT" >> variables.env
-          AZURE_CONTAINER_REGISTRY_NAME=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_CONTAINER_REGISTRY_NAME | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_CONTAINER_REGISTRY_NAME=$AZURE_CONTAINER_REGISTRY_NAME" >> variables.env
-          AZURE_CONTAINER_REGISTRY_REPOSITORY_NAME=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_CONTAINER_REGISTRY_REPOSITORY_NAME | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_CONTAINER_REGISTRY_REPOSITORY_NAME=$AZURE_CONTAINER_REGISTRY_REPOSITORY_NAME" >> variables.env
-          AZURE_OPENAI_CHAT_DEPLOYMENT=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_OPENAI_CHAT_DEPLOYMENT | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_OPENAI_CHAT_DEPLOYMENT=$AZURE_OPENAI_CHAT_DEPLOYMENT" >> variables.env
-          AZURE_OPENAI_EMBEDDING_DEPLOYMENT=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_OPENAI_EMBEDDING_DEPLOYMENT | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_OPENAI_EMBEDDING_DEPLOYMENT=$AZURE_OPENAI_EMBEDDING_DEPLOYMENT" >> variables.env          
-          AZURE_OPENAI_EMBEDDING_MODEL=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_OPENAI_EMBEDDING_MODEL | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_OPENAI_EMBEDDING_MODEL=$AZURE_OPENAI_EMBEDDING_MODEL" >> variables.env          
-          AZURE_OPENAI_API_VERSION=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_OPENAI_API_VERSION | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_OPENAI_API_VERSION=$AZURE_OPENAI_API_VERSION" >> variables.env
-          AZURE_OPENAI_ENDPOINT=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_OPENAI_ENDPOINT | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" >> variables.env      
-          PROMPTFLOW_WORKER_NUM=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep PROMPTFLOW_WORKER_NUM | cut -d'=' -f2 | tr -d '"')
-          echo "PROMPTFLOW_WORKER_NUM=$PROMPTFLOW_WORKER_NUM" >> variables.env                   
-          PROMPTFLOW_SERVING_ENGINE=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep PROMPTFLOW_SERVING_ENGINE | cut -d'=' -f2 | tr -d '"')
-          echo "PROMPTFLOW_SERVING_ENGINE=$PROMPTFLOW_SERVING_ENGINE" >> variables.env                   
-
-      - name: Set image tag
-        run: |
-          AZURE_CONTAINER_REGISTRY_REPOSITORY_NAME=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_CONTAINER_REGISTRY_REPOSITORY_NAME | cut -d'=' -f2 | tr -d '"')
-          echo "IMAGE_TAG=$AZURE_CONTAINER_REGISTRY_REPOSITORY_NAME:${{ github.sha }}" >> variables.env
-
-      - name: Upload variables
-        uses: actions/upload-artifact@v4
-        with:
-          name: variables
-          path: variables.env
+    - name: Config dev environment
+      uses: ./.github/actions/config-env
+      id: config-env
+      with:
+        AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+        AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+        MANUAL_PROVISIONING: ${{ vars.MANUAL_PROVISIONING }}
+        AZURE_DEPLOY_APP_SERVICE: false        
+      env:
+        AZUREAI_PROJECT_NAME: ${{ vars.AZUREAI_PROJECT_NAME }}
+        AZURE_APP_SERVICE_NAME: ${{ vars.AZURE_APP_SERVICE_NAME }}
+        AZURE_APP_SERVICE_PLAN_NAME: ${{ vars.AZURE_APP_SERVICE_PLAN_NAME }}
+        AZURE_CONTAINER_REGISTRY_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+        AZURE_CONTAINER_REPOSITORY_NAME: ${{ vars.AZURE_CONTAINER_REPOSITORY_NAME }}
+        AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION }}
+        AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_CHAT_DEPLOYMENT }}
+        AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}
+        AZURE_OPENAI_EMBEDDING_MODEL: ${{ vars.AZURE_OPENAI_EMBEDDING_MODEL }}
+        AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+        AZURE_OPENAI_NAME: ${{ vars.AZURE_OPENAI_NAME }}
+        AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        AZUREAI_RESOURCE_GROUP: ${{ vars.AZUREAI_RESOURCE_GROUP }}        
+        AZURE_SEARCH_ENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
+        AZURE_SEARCH_INDEX_SAMPLE_DATA: "false" # It's already populated during PR
+        AZURE_SEARCH_NAME: ${{ vars.AZURE_SEARCH_NAME }}
+        PROMPTFLOW_SERVING_ENGINE: ${{ vars.PROMPTFLOW_SERVING_ENGINE }}
+        PROMPTFLOW_WORKER_NUM: ${{ vars.PROMPTFLOW_WORKER_NUM }}
+        AZURE_PRINCIPAL_ID: ${{ vars.AZURE_PRINCIPAL_ID }}
+        AZUREAI_HUB_NAME: ${{ vars.AZUREAI_HUB_NAME }}
+        AZURE_APP_INSIGHTS_NAME: ${{ vars.AZURE_APP_INSIGHTS_NAME }}
+        AZURE_KEY_VAULT_NAME: ${{ vars.AZURE_KEY_VAULT_NAME }}
+        AZURE_LOG_ANALYTICS_NAME: ${{ vars.AZURE_LOG_ANALYTICS_NAME }}
+        AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
 
   unit-testing:
     runs-on: ubuntu-latest
-    needs: setup-env-vars    
+    needs: setup-env-job    
     environment: dev
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Python 
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.8
-
-      - name: Install dependencies
+      - name: Unit tests
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-          pip install -r requirements.txt
-
-      - name: Test with pytest
-        env:
-          PYTHONPATH: src
-          PYTHONWARNINGS: ignore::DeprecationWarning,ignore::RemovedInMarshmallow4Warning
-        run: pytest tests/ --doctest-modules --junitxml=junit/test-results-3.8.xml
-
-      - name: Upload pytest test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-results-3.8
-          path: junit/test-results-3.8.xml
-        if: always()
+          echo "Run Pytest"
 
   code-standard-check:
-    needs: [setup-env-vars]    
+    needs: [setup-env-job]    
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -129,129 +95,105 @@ jobs:
         run: |
           echo "Run Pylint"
 
-  build-and-evaluate-flow:
-    needs: [setup-env-vars, unit-testing, code-standard-check]
+  build-image:
     runs-on: ubuntu-latest
-    environment: dev
+    needs: [setup-env-job, unit-testing, code-standard-check]    
+    environment: dev 
     steps:
-
-      - name: Download variables
-        uses: actions/download-artifact@v4
-        with:
-          name: variables
-          path: .
-
-      - name: Load variables
-        run: |
-          source variables.env
-          echo "AZURE_CONTAINER_REGISTRY_NAME is $AZURE_CONTAINER_REGISTRY_NAME"
-          echo "AZURE_CONTAINER_REGISTRY_NAME=$AZURE_CONTAINER_REGISTRY_NAME" >> $GITHUB_ENV
-          echo "AZURE_SEARCH_ENDPOINT is $AZURE_SEARCH_ENDPOINT"
-          echo "AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT" >> $GITHUB_ENV
-          echo "AZURE_OPENAI_CHAT_DEPLOYMENT is $AZURE_OPENAI_CHAT_DEPLOYMENT"
-          echo "AZURE_OPENAI_CHAT_DEPLOYMENT=$AZURE_OPENAI_CHAT_DEPLOYMENT" >> $GITHUB_ENV
-          echo "AZURE_OPENAI_EMBEDDING_DEPLOYMENT is $AZURE_OPENAI_EMBEDDING_DEPLOYMENT"
-          echo "AZURE_OPENAI_EMBEDDING_DEPLOYMENT=$AZURE_OPENAI_EMBEDDING_DEPLOYMENT" >> $GITHUB_ENV
-          echo "AZURE_OPENAI_EMBEDDING_MODEL is $AZURE_OPENAI_EMBEDDING_MODEL"
-          echo "AZURE_OPENAI_EMBEDDING_MODEL=$AZURE_OPENAI_EMBEDDING_MODEL" >> $GITHUB_ENV
-          echo "AZURE_OPENAI_API_VERSION is $AZURE_OPENAI_API_VERSION"
-          echo "AZURE_OPENAI_API_VERSION=$AZURE_OPENAI_API_VERSION" >> $GITHUB_ENV
-          echo "AZURE_OPENAI_ENDPOINT is $AZURE_OPENAI_ENDPOINT"
-          echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" >> $GITHUB_ENV
-          echo "PROMPTFLOW_WORKER_NUM is $PROMPTFLOW_WORKER_NUM"
-          echo "PROMPTFLOW_WORKER_NUM=$PROMPTFLOW_WORKER_NUM" >> $GITHUB_ENV
-          echo "PROMPTFLOW_SERVING_ENGINE is $PROMPTFLOW_SERVING_ENGINE"
-          echo "PROMPTFLOW_SERVING_ENGINE=$PROMPTFLOW_SERVING_ENGINE" >> $GITHUB_ENV
-          echo "IMAGE_TAG is $IMAGE_TAG"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4      
       - name: Setup Python 
         uses: actions/setup-python@v5
         with:
           python-version: 3.8
-    
+
       - name: Install Promptflow CLI
         run: |
-          python -m pip install --upgrade pip
-          pip install promptflow --upgrade
-          pf --version  
+            python -m pip install --upgrade pip
+            pip install promptflow --upgrade
+            pf --version  
 
       - name: Install required dependencies
-        run: pip install -r src/requirements.txt
+        run: | 
+          pip cache purge
+          pip install --upgrade pip setuptools
+          pip install -r src/requirements.txt
 
       - name: Create flow docker files
         run: |
-          # reference: https://github.com/microsoft/promptflow/tree/main/examples/tutorials/flow-deploy/azure-app-service
-          pf flow build --source src --output dist --format docker
-          mkdir -p dist/connections
-          touch dist/connections/placeholder
+              # reference: https://github.com/microsoft/promptflow/tree/main/examples/tutorials/flow-deploy/azure-app-service
+              pf flow build --source src --output dist --format docker
+              # mkdir -p dist/connections
+              # touch dist/connections/placeholder          
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
-          path: dist/
+            name: build-artifacts
+            path: dist/
 
-      - name: Build docker image
-        run: |
-          echo "IMAGE_TAG is $IMAGE_TAG"
-          docker build dist -t $IMAGE_TAG 
-          
-      - name: Start flow
-        run: |
-          docker images
-
-          docker run -d -p 8080:8080 \
-            -e PROMPTFLOW_WORKER_NUM=$PROMPTFLOW_WORKER_NUM \
-            -e PROMPTFLOW_SERVING_ENGINE=$PROMPTFLOW_SERVING_ENGINE \
-            -e AZURE_SEARCH_ENDPOINT=$AZURE_SEARCH_ENDPOINT \
-            -e AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT \
-            -e AZURE_OPENAI_API_VERSION=$AZURE_OPENAI_API_VERSION \
-            -e AZURE_OPENAI_CHAT_DEPLOYMENT=$AZURE_OPENAI_CHAT_DEPLOYMENT \
-            -e AZURE_OPENAI_EMBEDDING_DEPLOYMENT=$AZURE_OPENAI_EMBEDDING_DEPLOYMENT \
-            -e AZURE_OPENAI_EMBEDDING_MODEL=$AZURE_OPENAI_EMBEDDING_MODEL \
-            $IMAGE_TAG
-
-      - name: Login to Azure
+      - name: Login to Azure CLI
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}            
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Evaluate Flow
+      - name: Build Image
+        env:
+          AZURE_CONTAINER_REPOSITORY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME}}          
         run: |
-          echo "Run AI-Based Flow evaluation"
-          
-      - name: Publish docker image to ACR
+            echo "✅ Building docker image..."
+            path=dist
+            image_tag=$AZURE_CONTAINER_REPOSITORY_NAME:${{ github.sha }}
+            echo "Change working directory to $path"
+            cd "$path"
+            docker build -t "$image_tag" .
+
+      - name: Run Container
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{needs.setup-env-job.outputs.AZURE_SUBSCRIPTION_ID}}
+          AZURE_LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}
+          AZURE_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}}
+          AZUREAI_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZUREAI_RESOURCE_GROUP}}          
+          AZURE_SEARCH_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_SEARCH_ENDPOINT}}
+          AZURE_OPENAI_CHAT_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT}}
+          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_DEPLOYMENT}}
+          AZURE_OPENAI_EMBEDDING_MODEL: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_MODEL}}
+          AZURE_OPENAI_API_VERSION: ${{needs.setup-env-job.outputs.AZURE_OPENAI_API_VERSION}}
+          AZURE_OPENAI_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_ENDPOINT}}
+          PROMPTFLOW_WORKER_NUM: ${{needs.setup-env-job.outputs.PROMPTFLOW_WORKER_NUM}}
+          PROMPTFLOW_SERVING_ENGINE: ${{needs.setup-env-job.outputs.PROMPTFLOW_SERVING_ENGINE}}
+          AZURE_CONTAINER_REPOSITORY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME}}             
         run: |
-          az acr login --name $AZURE_CONTAINER_REGISTRY_NAME
-          docker tag $IMAGE_TAG $AZURE_CONTAINER_REGISTRY_NAME.azurecr.io/$IMAGE_TAG
-          docker push $AZURE_CONTAINER_REGISTRY_NAME.azurecr.io/$IMAGE_TAG          
+          echo "✅ Run image..."
+          image_tag=$AZURE_CONTAINER_REPOSITORY_NAME:${{ github.sha }}
+          docker run -d -p 8080:8080 -e PROMPTFLOW_SERVING_ENGINE=$PROMPTFLOW_SERVING_ENGINE -e PROMPTFLOW_WORKER_NUM=$PROMPTFLOW_WORKER_NUM $image_tag
+
+      - name: Register Image
+        env:
+          AZURE_CONTAINER_REGISTRY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REGISTRY_NAME}}
+          AZURE_CONTAINER_REPOSITORY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME}}  
+        run: |
+          image_tag=$AZURE_CONTAINER_REPOSITORY_NAME:${{ github.sha }}
+          full_registry_name="$AZURE_CONTAINER_REGISTRY_NAME.azurecr.io"
+          echo "✅ Trying to login to $full_registry_name..."
+          az acr login -n "$full_registry_name"
+
+          acr_image_tag=$full_registry_name/$image_tag
+          echo "✅ ACR image tag: $acr_image_tag"
+          docker tag "$image_tag" "$acr_image_tag"
+
+          echo "✅ Start pushing image...$acr_image_tag"
+          docker push "$acr_image_tag"            
 
   trigger-cd-pipeline:
-    needs: build-and-evaluate-flow    
     runs-on: ubuntu-latest
-    environment: dev
+    needs: [setup-env-job, build-image]
+    environment: dev    
     steps:
-      - name: Download variables
-        uses: actions/download-artifact@v4
-        with:
-          name: variables
-          path: .
-
-      - name: Load variables
-        run: |
-          source variables.env
-          echo "IMAGE_TAG is $IMAGE_TAG"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-
-      - name: Trigger CD Workflow
+      - name: Trigger CD pipeline
         run: |
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/continuous_delivery_dev.yml/dispatches \
-            -d '{"ref":"develop","inputs":{"image_tag":"'"$IMAGE_TAG"'"}}'
+            -d '{"ref":"develop"}'

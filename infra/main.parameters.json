@@ -1,0 +1,72 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "environmentName": {
+        "value": "${AZURE_ENV_NAME}"
+      },
+      "location": {
+        "value": "${AZURE_LOCATION}"
+      },
+      "resourceGroupName": {
+        "value": "${AZURE_RESOURCE_GROUP}"
+      },
+      "aiResourceGroupName": {
+        "value": "${AZUREAI_RESOURCE_GROUP}"
+      },      
+      "principalId": {
+        "value": "${AZURE_PRINCIPAL_ID}"
+      },
+      "principalType": {
+        "value": "${AZURE_PRINCIPAL_TYPE}"
+      },
+      "aiHubName": {
+        "value": "${AZUREAI_HUB_NAME}"
+      },
+      "aiProjectName": {
+        "value": "${AZUREAI_PROJECT_NAME}"
+      },
+      "appInsightsName": {
+        "value": "${AZURE_APP_INSIGHTS_NAME}"
+      },
+      "appServiceName": {
+        "value": "${AZURE_APP_SERVICE_NAME}"
+      },
+      "appServicePlanName": {
+        "value": "${AZURE_APP_SERVICE_PLAN_NAME}"
+      },
+      "containerRegistryName": {
+        "value": "${AZURE_CONTAINER_REGISTRY_NAME}"
+      },
+      "containerRepositoryName": {
+        "value": "${AZURE_CONTAINER_REPOSITORY_NAME}"
+      },
+      "deployAppService": {
+        "value": "${AZURE_DEPLOY_APP_SERVICE}"
+      },
+      "keyVaultName": {
+        "value": "${AZURE_KEY_VAULT_NAME}"
+      },
+      "logAnalyticsName": {
+        "value": "${AZURE_LOG_ANALYTICS_NAME}"
+      },
+      "openAiName": {
+        "value": "${AZURE_OPENAI_NAME}"
+      },
+      "searchServiceName": {
+        "value": "${AZURE_SEARCH_NAME}"
+      },
+      "storageAccountName": {
+        "value": "${AZURE_STORAGE_ACCOUNT_NAME}"
+      },
+      "azureSearchIndexSampleData": {
+        "value": "${AZURE_SEARCH_INDEX_SAMPLE_DATA}"
+      },
+      "promptFlowWorkerNum": {
+        "value": "${PROMPTFLOW_WORKER_NUM}"
+      },
+      "promptFlowServingEngine": {
+        "value": "${PROMPTFLOW_SERVING_ENGINE}"
+      }
+    }
+  }

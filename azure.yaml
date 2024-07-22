@@ -5,25 +5,6 @@ workflows:
   up:
     steps:
       - azd: provision
-      
-hooks:
-  postprovision:
-    posix:
-      shell: sh
-      continueOnError: false
-      interactive: true
-      run: |
-        if [ "$GITHUB_ACTIONS" = "true" ]; then
-          sh infra/hooks/postprovision.sh
-        fi
-    windows:
-      shell: pwsh
-      continueOnError: false
-      interactive: true
-      run: |
-        if ($env:GITHUB_ACTIONS -eq "true") {
-          ./infra/hooks/postprovision.ps1
-        }
 
 services:
   rag-flow:

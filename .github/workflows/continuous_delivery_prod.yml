@@ -4,9 +4,61 @@ on:
   push:
     branches:
       - main
+      
 
 jobs:
-  
+
+  setup-env-job:
+    if: ${{ github.repository != 'Azure/llmops-project-template' }}        
+    runs-on: ubuntu-latest
+    environment: prod
+    outputs:
+      AZURE_APP_SERVICE_NAME: ${{ steps.config-env.outputs.AZURE_APP_SERVICE_NAME }}
+      AZURE_APP_SERVICE_PLAN_NAME: ${{ steps.config-env.outputs.AZURE_APP_SERVICE_PLAN_NAME }}
+      AZURE_CONTAINER_REGISTRY_NAME: ${{ steps.config-env.outputs.AZURE_CONTAINER_REGISTRY_NAME }}
+      AZURE_CONTAINER_REPOSITORY_NAME: ${{ steps.config-env.outputs.AZURE_CONTAINER_REPOSITORY_NAME }}
+      AZURE_LOCATION: ${{ steps.config-env.outputs.AZURE_LOCATION }}
+      AZURE_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}
+      AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZUREAI_RESOURCE_GROUP }}          
+      AZURE_SUBSCRIPTION_ID: ${{ steps.config-env.outputs.AZURE_SUBSCRIPTION_ID }}
+    steps: 
+      - uses: actions/checkout@v4   
+      - name: Provision prod environment
+        uses: ./.github/actions/config-env
+        id: config-env
+        with:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+          AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}          
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          MANUAL_PROVISIONING: ${{ vars.MANUAL_PROVISIONING }}
+          AZURE_DEPLOY_APP_SERVICE: true
+        env:
+          AZUREAI_PROJECT_NAME: ${{ vars.AZUREAI_PROJECT_NAME }}
+          AZURE_APP_SERVICE_NAME: ${{ vars.AZURE_APP_SERVICE_NAME }}
+          AZURE_APP_SERVICE_PLAN_NAME: ${{ vars.AZURE_APP_SERVICE_PLAN_NAME }}
+          AZURE_CONTAINER_REGISTRY_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+          AZURE_CONTAINER_REPOSITORY_NAME: ${{ vars.AZURE_CONTAINER_REPOSITORY_NAME }}
+          AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION }}
+          AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_CHAT_DEPLOYMENT }}
+          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}
+          AZURE_OPENAI_EMBEDDING_MODEL: ${{ vars.AZURE_OPENAI_EMBEDDING_MODEL }}
+          AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_NAME: ${{ vars.AZURE_OPENAI_NAME }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZUREAI_RESOURCE_GROUP: ${{ vars.AZUREAI_RESOURCE_GROUP }}               
+          AZURE_SEARCH_ENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
+          AZURE_SEARCH_INDEX_SAMPLE_DATA: ${{ vars.AZURE_SEARCH_INDEX_SAMPLE_DATA }}
+          AZURE_SEARCH_NAME: ${{ vars.AZURE_SEARCH_NAME }}
+          PROMPTFLOW_SERVING_ENGINE: ${{ vars.PROMPTFLOW_SERVING_ENGINE }}
+          PROMPTFLOW_WORKER_NUM: ${{ vars.PROMPTFLOW_WORKER_NUM }}
+          AZURE_PRINCIPAL_ID: ${{ vars.AZURE_PRINCIPAL_ID }}
+          AZUREAI_HUB_NAME: ${{ vars.AZUREAI_HUB_NAME }}
+          AZURE_APP_INSIGHTS_NAME: ${{ vars.AZURE_APP_INSIGHTS_NAME }}
+          AZURE_KEY_VAULT_NAME: ${{ vars.AZURE_KEY_VAULT_NAME }}
+          AZURE_LOG_ANALYTICS_NAME: ${{ vars.AZURE_LOG_ANALYTICS_NAME }}
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
+
   integration-testing:
     if: ${{ github.repository != 'Azure/llmops-project-template' }}    
     runs-on: ubuntu-latest
@@ -15,10 +67,86 @@ jobs:
       - name: Integration Tests
         run: |
           echo "Run PROD Integration Tests"
-            
-  provision-and-deploy:
-    needs: integration-testing
+
+  get-source-acr-and-repository:
+    needs: [setup-env-job, setup-env-job, integration-testing]
     runs-on: ubuntu-latest
+    environment: qa
+    env:
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      AZURE_DEV_COLLECT_TELEMETRY: no
+    outputs:
+      SOURCE_REGISTRY: ${{ steps.get-vars.outputs.SOURCE_REGISTRY }}
+      
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Azure Developer CLI 
+        uses: Azure/setup-azd@v1.0.0
+
+      - name: azd Login
+        shell: bash  
+        run: |
+            info=$(echo $AZURE_CREDENTIALS | jq -r '.')
+            echo "::add-mask::$(echo $info | jq -r '.clientSecret')"
+            azd auth login \
+              --client-id "$(echo $info | jq -r '.clientId')" \
+              --client-secret "$(echo $info | jq -r '.clientSecret')" \
+              --tenant-id "$(echo $info | jq -r '.tenantId')"
+
+      - name: Get source repo vars
+        id: get-vars
+        shell: bash      
+        run: |
+          echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
+          echo "AZURE_LOCATION=$AZURE_LOCATION"
+          echo "azd init -e $AZURE_ENV_NAME -l $AZURE_LOCATION -s $AZURE_SUBSCRIPTION_ID"
+          azd init -e $AZURE_ENV_NAME -l $AZURE_LOCATION -s $AZURE_SUBSCRIPTION_ID
+
+          # Run azd env refresh and capture last deployment outputs
+          echo "🔶 | Run azd env refresh and capture outputs"
+          azd env refresh -e "$AZURE_ENV_NAME"
+
+          echo "🔶 | Get $AZURE_ENV_NAME environment variables"
+
+          # Get environment variable from the last deployment
+          AZURE_CONTAINER_REGISTRY_NAME=$(azd env get-values -e $AZURE_ENV_NAME | grep AZURE_CONTAINER_REGISTRY_NAME | cut -d'=' -f2 | tr -d '"' || true)
+          echo "SOURCE_REGISTRY=$AZURE_CONTAINER_REGISTRY_NAME" >> "$GITHUB_OUTPUT" 
+          echo "SOURCE_REGISTRY=$AZURE_CONTAINER_REGISTRY_NAME"      
+          
+
+  import-image:
+    runs-on: ubuntu-latest
+    needs: [setup-env-job, get-source-acr-and-repository] 
+    environment: prod
+    env:
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+      SOURCE_REGISTRY: ${{ needs.get-source-acr-and-repository.outputs.SOURCE_REGISTRY }}
+      AZURE_CONTAINER_REGISTRY_NAME: ${{ needs.setup-env-job.outputs.AZURE_CONTAINER_REGISTRY_NAME }}
+      AZURE_CONTAINER_REPOSITORY_NAME: ${{ needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME }}
+    steps:   
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Azure CLI
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Import image
+        run: |        
+          az acr import -n $AZURE_CONTAINER_REGISTRY_NAME --source $SOURCE_REGISTRY.azurecr.io/$AZURE_CONTAINER_REPOSITORY_NAME:${{ github.sha }}
+          
+          # in case ACR is in another subscription: 
+          # az acr import -n myregistry --source sourcerepository:sourcetag -t targetrepository:targettag -r /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sourceResourceGroup/providers/Microsoft.ContainerRegistry/registries/sourceRegistry
+
+
+  deploy-flow:
+    runs-on: ubuntu-latest
+    needs: [setup-env-job, import-image] 
     environment: prod
     env:
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
@@ -27,91 +155,120 @@ jobs:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       AZURE_DEV_COLLECT_TELEMETRY: no
 
-    steps:
+    steps:   
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install azd
-        uses: Azure/setup-azd@v1.0.0
       
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up Azure CLI
+        uses: azure/login@v2
         with:
-          python-version: '3.11'
-
-      - name: az Login
-        run: |
-          info=$(echo $AZURE_CREDENTIALS | jq -r '.')
-          echo "::add-mask::$(echo $info | jq -r '.clientSecret')"
-          az login \
-            --service-principal \
-            --username "$(echo $info | jq -r '.clientId')" \
-            --password "$(echo $info | jq -r '.clientSecret')" \
-            --tenant "$(echo $info | jq -r '.tenantId')"
-        shell: bash
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Set az account
         uses: azure/CLI@v2
         with:
           inlineScript: |
-            az account set --subscription ${{ env.AZURE_SUBSCRIPTION_ID }}
-
-      - name: azd Login
-        run: |
-          info=$(echo $AZURE_CREDENTIALS | jq -r '.')
-          echo "::add-mask::$(echo $info | jq -r '.clientSecret')"
-          azd auth login \
-            --client-id "$(echo $info | jq -r '.clientId')" \
-            --client-secret "$(echo $info | jq -r '.clientSecret')" \
-            --tenant-id "$(echo $info | jq -r '.tenantId')"
-        shell: bash  
-
-      - name: Provision Infrastructure
-        run: |
-          if [ ! -d ".azure" ]; then
-            echo "Initializing azd environment"
-            azd init -e $AZURE_ENV_NAME -l $AZURE_LOCATION -s $AZURE_SUBSCRIPTION_ID
-          fi        
-          azd provision --no-prompt
+            az account set --subscription $AZURE_SUBSCRIPTION_ID
+  
+      - name: Deploy Flow
         env:
-          AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
-          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_APP_SERVICE_NAME: ${{needs.setup-env-job.outputs.AZURE_APP_SERVICE_NAME}}
+          AZURE_APP_SERVICE_PLAN_NAME: ${{needs.setup-env-job.outputs.AZURE_APP_SERVICE_PLAN_NAME}}
+          AZURE_CONTAINER_REGISTRY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REGISTRY_NAME}}
+          AZURE_CONTAINER_REPOSITORY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME}}
+          AZURE_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}}
+          AZURE_SUBSCRIPTION_ID: ${{needs.setup-env-job.outputs.AZURE_SUBSCRIPTION_ID}}
+        shell: bash             
+        run: | 
+          # Deploy Flow
+          echo "🔶 | Deploying to Azure"
+          image_tag="${AZURE_CONTAINER_REPOSITORY_NAME}:${{ github.sha }}"
+          name="${AZURE_APP_SERVICE_NAME}"
+          service_plan_name="${AZURE_APP_SERVICE_PLAN_NAME}"
+          subscription="${AZURE_SUBSCRIPTION_ID}"
+          resource_group="${AZURE_RESOURCE_GROUP}"
+          registry_name="${AZURE_CONTAINER_REGISTRY_NAME}"
+          full_registry_name="${registry_name}.azurecr.io"
+          acr_image_tag=$full_registry_name/$image_tag
+    
+          echo "Image Tag: $image_tag"
+          echo "ACR Image Tag: $acr_image_tag"          
+          echo "App Service Name: $name"
+          echo "Service Plan Name: $service_plan_name"
+          echo "Subscription ID: $subscription"
+          echo "Resource Group: $resource_group"
+          echo "Registry Name: $registry_name"
+          echo "Full Registry Name: $full_registry_name"
 
-      - name: Get azd env variables
-        run: |
+          function append_to_command {
+            command=$1
+            if [ -n "$subscription" ]; then
+              command="$command --subscription $subscription"
+            fi
+            if $verbose; then
+              command="$command --debug"
+            fi
+            echo "$command"
+          }
 
-          echo "AZURE_SUBSCRIPTION_ID is $AZURE_SUBSCRIPTION_ID"
-          echo "AZURE_LOCATION is $AZURE_LOCATION"
-          echo "AZURE_ENV_NAME is $AZURE_ENV_NAME"
+          echo "🔶 | Trying to login to $registry_name..."
+          az acr login -n "$registry_name"
 
-          if [ ! -d ".azure" ]; then
-            echo "Initializing azd environment"
-            azd init -e $AZURE_ENV_NAME -l $AZURE_LOCATION -s $AZURE_SUBSCRIPTION_ID
+          # Check if the container image exists
+          echo "🔶 | Checking if ${acr_image_tag} exists..."
+          set +e
+          image_exists=$(az acr repository show --name $registry_name --image ${acr_image_tag} --query "name" -o tsv > /dev/null 2>&1 && echo true || echo false)
+          set -e
+          if [ -z "$image_exists" ]; then
+            echo "❌ | $acr_image_tag does not exist"
+            exit 1
+          else
+            echo "✅ | $acr_image_tag exists"
           fi
 
-          azd env refresh
-          echo "azd $AZURE_ENV_NAME environment variables"
+          # Check if the app exists
+          echo "🔶 | Checking if the app exists..."
+          app_exists=$(az webapp show --name $name --resource-group $resource_group --query "name" -o tsv)
 
-          echo "AZURE_ENV_NAME is $AZURE_ENV_NAME"
-          echo "AZURE_LOCATION is $AZURE_LOCATION"
-          echo "AZURE_SUBSCRIPTION_ID is $AZURE_SUBSCRIPTION_ID"
+          if [ -z "$app_exists" ]; then
+            # Create app
+            echo "🔶 | Creating $name app..."
+            command="az webapp create --name $name -p $service_plan_name --deployment-container-image-name $acr_image_tag --startup-file 'bash start.sh' -g $resource_group"
+            command=$(append_to_command "$command")
+            echo "$command"
+            eval "$command"
+          else
+            # Update app
+            echo "🔶 | Updating $name app..."
+            command="az webapp config container set --name $name --resource-group $resource_group --container-image-name $acr_image_tag"
+            command=$(append_to_command "$command")
+            echo "$command"
+            eval "$command"
+          fi
+          
+          # Set Registry and ACR credentials
+          echo "🔶 | Setting ACR credentials in $registry_name registry..."
+          az acr update -n $registry_name --admin-enabled true
+          acr_username=$(az acr credential show --name $registry_name --query username --output tsv)
+          acr_password=$(az acr credential show --name $registry_name --query passwords[0].value --output tsv)
+          az webapp config container set --name $name --resource-group $resource_group --container-registry-user $acr_username --container-registry-password $acr_password 
 
-          AZURE_CONTAINER_REGISTRY_NAME=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_CONTAINER_REGISTRY_NAME | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_CONTAINER_REGISTRY_NAME is $AZURE_CONTAINER_REGISTRY_NAME"
-          echo "AZURE_CONTAINER_REGISTRY_NAME=$AZURE_CONTAINER_REGISTRY_NAME" >> $GITHUB_ENV
+          # Config environment variables
+          echo "🔶 | Config  app $name env variables ..." 
+          # Port default to 8080 corresponding to the DockerFile
+          command="az webapp config appsettings set -g $resource_group --name $name --settings USER_AGENT=promptflow-appservice WEBSITES_PORT=8080"
+          command=$(append_to_command "$command")
+          echo "$command"
+          eval "$command"
 
-          AZURE_APP_SERVICE_NAME=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_APP_SERVICE_NAME | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_APP_SERVICE_NAME is $AZURE_APP_SERVICE_NAME"
-          echo "AZURE_APP_SERVICE_NAME=$AZURE_APP_SERVICE_NAME" >> $GITHUB_ENV
+          # Restarting app
+          echo "🔶 | Restarting app ...$name"          
+          az webapp restart --name $name --resource-group $resource_group
 
-          AZURE_RESOURCE_GROUP=$(azd env get-values -e ${{ vars.AZURE_ENV_NAME }} | grep AZURE_RESOURCE_GROUP | cut -d'=' -f2 | tr -d '"')
-          echo "AZURE_RESOURCE_GROUP is $AZURE_RESOURCE_GROUP"
-          echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP" >> $GITHUB_ENV
-
-      - name: Deploy to Azure App Service
-        run: |
-          echo "Deploy to Azure App Service PROD Environment"
+          echo "🔗 Please go to https://portal.azure.com/ to config environment variables of $name app at (Settings>Configuration) or (Settings>Environment variables)"
+          echo "Reach deployment logs at (Deployment>Deployment Central) and app logs at (Monitoring>Log stream)"
+          echo "🔗 Reach advanced deployment tools at https://$name.scm.azurewebsites.net/"
+          echo "🔗 Reach more details about app service at https://learn.microsoft.com/en-us/azure/app-service/"
 
       - name: GitHub Summary Step
         if: ${{ success() }}
@@ -121,7 +278,7 @@ jobs:
           echo "🔗 [View Resources Deployed Here]($deep_link)" >> $GITHUB_STEP_SUMMARY
 
   smoke-tests:
-    needs: provision-and-deploy
+    needs: deploy-flow
     runs-on: ubuntu-latest
     environment: prod
     steps:
