@@ -11,8 +11,44 @@ on:
 
 jobs:
 
+  unit-testing:
+    if: ${{ github.repository != 'Azure/llmops-project-template' }}    
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:       
+      - uses: actions/checkout@v4
+      - name: Setup Python 
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r requirements.txt
+      - name: Test with pytest
+        env:
+          PYTHONPATH: src
+          PYTHONWARNINGS: ignore::DeprecationWarning,ignore::RemovedInMarshmallow4Warning
+        run: pytest tests/ --doctest-modules --junitxml=junit/test-results-3.11.xml
+      - name: Upload pytest test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-3.11
+          path: junit/test-results-3.11.xml
+        if: always()
+
+  code-standard-check: 
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Check code standards
+        run: |
+          echo "Run Pylint"
+
   setup-env-job:
-    if: ${{ github.repository != 'Azure/llmops-project-template' }}        
+    if: ${{ github.repository != 'Azure/llmops-project-template' }}
+    needs: [unit-testing, code-standard-check]        
     runs-on: ubuntu-latest
     environment: dev
     outputs:
@@ -29,7 +65,7 @@ jobs:
       AZURE_OPENAI_ENDPOINT: ${{ steps.config-env.outputs.AZURE_OPENAI_ENDPOINT }}
       AZURE_OPENAI_NAME: ${{ steps.config-env.outputs.AZURE_OPENAI_NAME }}
       AZURE_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}
-      AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZUREAI_RESOURCE_GROUP }}      
+      AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}      
       AZURE_SEARCH_ENDPOINT: ${{ steps.config-env.outputs.AZURE_SEARCH_ENDPOINT }}
       AZURE_SEARCH_INDEX_SAMPLE_DATA: ${{ steps.config-env.outputs.AZURE_SEARCH_INDEX_SAMPLE_DATA }}
       AZURE_SEARCH_NAME: ${{ steps.config-env.outputs.AZURE_SEARCH_NAME }}
@@ -64,7 +100,7 @@ jobs:
         AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
         AZURE_OPENAI_NAME: ${{ vars.AZURE_OPENAI_NAME }}
         AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-        AZUREAI_RESOURCE_GROUP: ${{ vars.AZUREAI_RESOURCE_GROUP }}        
+        AZUREAI_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}        
         AZURE_SEARCH_ENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
         AZURE_SEARCH_INDEX_SAMPLE_DATA: "false" # It's already populated during PR
         AZURE_SEARCH_NAME: ${{ vars.AZURE_SEARCH_NAME }}
@@ -77,27 +113,60 @@ jobs:
         AZURE_LOG_ANALYTICS_NAME: ${{ vars.AZURE_LOG_ANALYTICS_NAME }}
         AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
 
-  unit-testing:
+  flow-evaluation:
+    needs: [setup-env-job, unit-testing, code-standard-check]
     runs-on: ubuntu-latest
-    needs: setup-env-job    
     environment: dev
     steps:
-      - name: Unit tests
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Python 
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+      - name: Install dependencies
         run: |
-          echo "Run Pytest"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-  code-standard-check:
-    needs: [setup-env-job]    
-    runs-on: ubuntu-latest
-    environment: dev
-    steps:
-      - name: Check code standards
+      - name: Login to Azure CLI
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}           
+
+      - name: AI-Based QA evaluation
+        env: 
+          AZURE_SUBSCRIPTION_ID: ${{needs.setup-env-job.outputs.AZURE_SUBSCRIPTION_ID}}      
+          AZURE_LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}               
+          AZURE_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}}               
+          AZURE_OPENAI_NAME: ${{needs.setup-env-job.outputs.AZURE_OPENAI_NAME}}
+          AZURE_OPENAI_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_ENDPOINT}}
+          AZURE_SEARCH_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_SEARCH_ENDPOINT}}
+          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_DEPLOYMENT}}
+          AZURE_OPENAI_CHAT_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT}}
+          AZURE_OPENAI_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT}} 
+          AZURE_OPENAI_EMBEDDING_MODEL: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_MODEL}}
+          AZURE_OPENAI_API_VERSION: ${{needs.setup-env-job.outputs.AZURE_OPENAI_API_VERSION}}
+          AZUREAI_PROJECT_NAME: ${{needs.setup-env-job.outputs.AZUREAI_PROJECT_NAME}}           
+          PREFIX: ${{ github.sha }} 
         run: |
-          echo "Run Pylint"
+          echo "Run AI-Based flow evaluation"
+          echo "AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP}"
+          echo "AZURE_OPENAI_NAME=${AZURE_OPENAI_NAME}"
+          export AZURE_OPENAI_API_KEY=$(az cognitiveservices account keys list --resource-group ${AZURE_RESOURCE_GROUP} --name ${AZURE_OPENAI_NAME} --query "key1" --output tsv)
+          python evaluations/qa_quality_eval.py
+        shell: bash
+
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v4
+        with:
+            name: flow-eval-results
+            path: qa_flow_quality_eval.json
 
   build-image:
     runs-on: ubuntu-latest
-    needs: [setup-env-job, unit-testing, code-standard-check]    
+    needs: [setup-env-job, unit-testing, code-standard-check, flow-evaluation]    
     environment: dev 
     steps:
       - uses: actions/checkout@v4      
@@ -121,9 +190,7 @@ jobs:
       - name: Create flow docker files
         run: |
               # reference: https://github.com/microsoft/promptflow/tree/main/examples/tutorials/flow-deploy/azure-app-service
-              pf flow build --source src --output dist --format docker
-              # mkdir -p dist/connections
-              # touch dist/connections/placeholder          
+              pf flow build --source src --output dist --format docker       
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -152,7 +219,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{needs.setup-env-job.outputs.AZURE_SUBSCRIPTION_ID}}
           AZURE_LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}
           AZURE_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}}
-          AZUREAI_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZUREAI_RESOURCE_GROUP}}          
+          AZUREAI_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}}          
           AZURE_SEARCH_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_SEARCH_ENDPOINT}}
           AZURE_OPENAI_CHAT_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT}}
           AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_DEPLOYMENT}}

@@ -12,7 +12,6 @@ All parameters are optional except for `AZURE_ENV_NAME`, `AZURE_LOCATION`, and `
 | `AZURE_LOCATION`                   | The location of the Azure resources.                | -                                                  |
 | `AZURE_SUBSCRIPTION_ID`            | The subscription ID for the Azure resources.        | -                                                  |
 | `AZURE_RESOURCE_GROUP`             | The name of the resource group.                     | random                                             |
-| `AZUREAI_RESOURCE_GROUP`           | The name of the AI resource group.                  | random                                             |
 | `AZURE_PRINCIPAL_ID`               | The ID of the principal (Service Principal).        | identity of SP set in AZURE_CREDENTIALS secret     |
 | `AZUREAI_HUB_NAME`                 | The name of the AI Hub.                             | random                                             |
 | `AZUREAI_PROJECT_NAME`             | The name of the AI project.                         | random                                             |

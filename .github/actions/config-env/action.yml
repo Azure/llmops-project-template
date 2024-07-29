@@ -1,7 +1,9 @@
 name: Config Environment
 description: >
   This action will provision an Azure environment and read its variables (deployment outputs).
-  If you don't want to do the provisioning, just get env variables by setting MANUAL_PROVISIONING input to true.
+  Provision will be done in case there is no previous deployment or the resource group doesn't exist.
+  If there's already a deployment, it will update the provisioned resources in case the template has changed.
+  If you don't want to do the provisioning at all, just get env variables by setting MANUAL_PROVISIONING input to true.
 inputs:
   AZURE_CREDENTIALS:
     description: 'Azure credentials'
@@ -63,14 +65,34 @@ runs:
       shell: bash
       id: setup-env-step
       run: |
-
-        VARIABLES=("AZUREAI_HUB_NAME" "AZUREAI_PROJECT_NAME" "AZURE_APP_INSIGHTS_NAME" "AZURE_APP_SERVICE_NAME"
-                    "AZURE_APP_SERVICE_PLAN_NAME" "AZURE_CONTAINER_REGISTRY_NAME" "AZURE_CONTAINER_REPOSITORY_NAME"
-                    "AZURE_KEY_VAULT_NAME" "AZURE_LOG_ANALYTICS_NAME" "AZURE_OPENAI_API_VERSION" 
-                    "AZURE_OPENAI_CHAT_DEPLOYMENT" "AZURE_OPENAI_EMBEDDING_DEPLOYMENT" "AZURE_OPENAI_EMBEDDING_MODEL"
-                    "AZURE_OPENAI_ENDPOINT" "AZURE_OPENAI_NAME" "AZURE_PRINCIPAL_ID" "AZURE_RESOURCE_GROUP" 
-                    "AZUREAI_RESOURCE_GROUP" "AZURE_SEARCH_ENDPOINT" "AZURE_SEARCH_INDEX_SAMPLE_DATA"
-                  "AZURE_SEARCH_NAME" "AZURE_STORAGE_ACCOUNT_NAME" "PROMPTFLOW_SERVING_ENGINE" "PROMPTFLOW_WORKER_NUM")
+        VARIABLES=(
+          "AZUREAI_HUB_NAME" 
+          "AZUREAI_PROJECT_NAME" 
+          "AZURE_APP_INSIGHTS_NAME" 
+          "AZURE_APP_SERVICE_NAME"
+          "AZURE_SUBSCRIPTION_ID" 
+          "AZURE_LOCATION" 
+          "AZUREAI_RESOURCE_GROUP"
+          "AZURE_APP_SERVICE_PLAN_NAME" 
+          "AZURE_CONTAINER_REGISTRY_NAME" 
+          "AZURE_CONTAINER_REPOSITORY_NAME"
+          "AZURE_KEY_VAULT_NAME" 
+          "AZURE_LOG_ANALYTICS_NAME" 
+          "AZURE_OPENAI_API_VERSION"
+          "AZURE_OPENAI_CHAT_DEPLOYMENT" 
+          "AZURE_OPENAI_EMBEDDING_DEPLOYMENT" 
+          "AZURE_OPENAI_EMBEDDING_MODEL"
+          "AZURE_OPENAI_ENDPOINT" 
+          "AZURE_OPENAI_NAME" 
+          "AZURE_PRINCIPAL_ID" 
+          "AZURE_RESOURCE_GROUP"
+          "AZURE_SEARCH_ENDPOINT" 
+          "AZURE_SEARCH_INDEX_SAMPLE_DATA"
+          "AZURE_SEARCH_NAME" 
+          "AZURE_STORAGE_ACCOUNT_NAME" 
+          "PROMPTFLOW_SERVING_ENGINE" 
+          "PROMPTFLOW_WORKER_NUM"
+        )
 
         manual_environment=${{ inputs.MANUAL_PROVISIONING || 'false' }}
         if [ "$manual_environment" = "true" ]; then
@@ -192,9 +214,18 @@ runs:
         fi
 
 outputs:
+  AZUREAI_HUB_NAME:
+    description: 'Azure AI Hub Name'
+    value: ${{ steps.setup-env-step.outputs.AZUREAI_HUB_NAME }}
   AZUREAI_PROJECT_NAME:
     description: 'Azure AI Project Name'
     value: ${{ steps.setup-env-step.outputs.AZUREAI_PROJECT_NAME }}
+  AZUREAI_RESOURCE_GROUP:
+    description: 'Azure AI Resource Group Name'
+    value: ${{ steps.setup-env-step.outputs.AZURE_RESOURCE_GROUP }}
+  AZURE_APP_INSIGHTS_NAME:
+    description: 'Azure App Insights Name'
+    value: ${{ steps.setup-env-step.outputs.AZURE_APP_INSIGHTS_NAME }}
   AZURE_APP_SERVICE_NAME:
     description: 'Azure App Service Name'
     value: ${{ steps.setup-env-step.outputs.AZURE_APP_SERVICE_NAME }}
@@ -207,9 +238,15 @@ outputs:
   AZURE_CONTAINER_REPOSITORY_NAME:
     description: 'Azure Container Registry Repository Name'
     value: ${{ steps.setup-env-step.outputs.AZURE_CONTAINER_REPOSITORY_NAME }}
+  AZURE_KEY_VAULT_NAME:
+    description: 'Azure Key Vault Name'
+    value: ${{ steps.setup-env-step.outputs.AZURE_KEY_VAULT_NAME }}
   AZURE_LOCATION:
     description: 'Azure location'
     value: ${{ steps.setup-env-step.outputs.AZURE_LOCATION }}
+  AZURE_LOG_ANALYTICS_NAME:
+    description: 'Azure Log Analytics Name'
+    value: ${{ steps.setup-env-step.outputs.AZURE_LOG_ANALYTICS_NAME }}
   AZURE_OPENAI_API_VERSION:
     description: 'Azure OpenAI API Version'
     value: ${{ steps.setup-env-step.outputs.AZURE_OPENAI_API_VERSION }}

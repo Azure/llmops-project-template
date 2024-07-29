@@ -14,17 +14,18 @@ def get_context(question, embedding):
 
 def get_embedding(question: str):
     connection = AzureOpenAIConnection(        
-                    azure_deployment=os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"],
-                    api_version=os.environ["AZURE_OPENAI_API_VERSION"],
-                    api_base=os.environ["AZURE_OPENAI_ENDPOINT"]
+                    azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", ""),
+                    api_version=os.getenv("AZURE_OPENAI_API_VERSION", ""),
+                    api_base=os.getenv("AZURE_OPENAI_ENDPOINT", "")
                     )
                 
     client = init_azure_openai_client(connection)
 
     return client.embeddings.create(
             input=question,
-            model=os.environ["AZURE_OPENAI_EMBEDDING_MODEL"],
+            model=os.getenv("AZURE_OPENAI_EMBEDDING_MODEL", ""),
         ).data[0].embedding
+
 @tool
 def get_response(question, chat_history):
     print("inputs:", question)
@@ -34,15 +35,15 @@ def get_response(question, chat_history):
     print("getting result...")
 
     configuration = AzureOpenAIModelConfiguration(
-        azure_deployment=os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"],
-        api_version=os.environ["AZURE_OPENAI_API_VERSION"],
-        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"]
+        azure_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", ""),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION", ""),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", "")
     )
     override_model = {
         "configuration": configuration,
         "parameters": {"max_tokens": 512}
     }
-    # get cwd
+    
     data_path = os.path.join(pathlib.Path(__file__).parent.resolve(), "./chat.prompty")
     prompty_obj = Prompty.load(data_path, model=override_model)
 
@@ -52,5 +53,5 @@ def get_response(question, chat_history):
 
     return {"answer": result, "context": context}
 
-# if __name__ == "__main__":
-#     get_response("What is the size of the moon?", [])
+if __name__ == "__main__":
+    get_response("What is the size of the moon?", [])

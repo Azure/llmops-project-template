@@ -5,7 +5,6 @@ on:
     branches:
       - main
       
-
 jobs:
 
   setup-env-job:
@@ -19,7 +18,7 @@ jobs:
       AZURE_CONTAINER_REPOSITORY_NAME: ${{ steps.config-env.outputs.AZURE_CONTAINER_REPOSITORY_NAME }}
       AZURE_LOCATION: ${{ steps.config-env.outputs.AZURE_LOCATION }}
       AZURE_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}
-      AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZUREAI_RESOURCE_GROUP }}          
+      AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}          
       AZURE_SUBSCRIPTION_ID: ${{ steps.config-env.outputs.AZURE_SUBSCRIPTION_ID }}
     steps: 
       - uses: actions/checkout@v4   
@@ -46,7 +45,7 @@ jobs:
           AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_NAME: ${{ vars.AZURE_OPENAI_NAME }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZUREAI_RESOURCE_GROUP: ${{ vars.AZUREAI_RESOURCE_GROUP }}               
+          AZUREAI_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}               
           AZURE_SEARCH_ENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
           AZURE_SEARCH_INDEX_SAMPLE_DATA: ${{ vars.AZURE_SEARCH_INDEX_SAMPLE_DATA }}
           AZURE_SEARCH_NAME: ${{ vars.AZURE_SEARCH_NAME }}
@@ -278,10 +277,12 @@ jobs:
           echo "🔗 [View Resources Deployed Here]($deep_link)" >> $GITHUB_STEP_SUMMARY
 
   smoke-tests:
-    needs: deploy-flow
+    needs: [setup-env-job, deploy-flow]     
     runs-on: ubuntu-latest
     environment: prod
+    env: 
+      AZURE_APP_SERVICE_NAME: ${{needs.setup-env-job.outputs.AZURE_APP_SERVICE_NAME}}
     steps:
       - name: Smoke Tests
         run: |
-          echo "Run Smoke Tests"
+          curl https://${{AZURE_APP_SERVICE_NAME}}.azurewebsites.net/score --data '{"question":"What is the size of the moon?", "chat_history":[]}' -X POST  -H "Content-Type: application/json"

@@ -18,8 +18,18 @@ jobs:
       AZURE_CONTAINER_REPOSITORY_NAME: ${{ steps.config-env.outputs.AZURE_CONTAINER_REPOSITORY_NAME }}
       AZURE_LOCATION: ${{ steps.config-env.outputs.AZURE_LOCATION }}
       AZURE_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}
-      AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZUREAI_RESOURCE_GROUP }}          
+      AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}
+      AZUREAI_PROJECT_NAME: ${{ steps.config-env.outputs.AZUREAI_PROJECT_NAME }}            
       AZURE_SUBSCRIPTION_ID: ${{ steps.config-env.outputs.AZURE_SUBSCRIPTION_ID }}
+      AZURE_SEARCH_ENDPOINT: ${{ steps.config-env.outputs.AZURE_SEARCH_ENDPOINT }}
+      AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ steps.config-env.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT }}
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{steps.config-env.outputs.AZURE_OPENAI_EMBEDDING_DEPLOYMENT}}
+      AZURE_OPENAI_EMBEDDING_MODEL: ${{steps.config-env.outputs.AZURE_OPENAI_EMBEDDING_MODEL}}
+      AZURE_OPENAI_API_VERSION: ${{steps.config-env.outputs.AZURE_OPENAI_API_VERSION}}
+      AZURE_OPENAI_ENDPOINT: ${{steps.config-env.outputs.AZURE_OPENAI_ENDPOINT}}
+      AZURE_OPENAI_NAME: ${{steps.config-env.outputs.AZURE_OPENAI_NAME}}
+      PROMPTFLOW_WORKER_NUM: ${{steps.config-env.outputs.PROMPTFLOW_WORKER_NUM}}
+      PROMPTFLOW_SERVING_ENGINE: ${{steps.config-env.outputs.PROMPTFLOW_SERVING_ENGINE}}
     steps: 
       - uses: actions/checkout@v4   
       - name: Provision qa environment
@@ -40,12 +50,13 @@ jobs:
           AZURE_CONTAINER_REPOSITORY_NAME: ${{ vars.AZURE_CONTAINER_REPOSITORY_NAME }}
           AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION }}
           AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_CHAT_DEPLOYMENT }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ vars.AZURE_OPENAI_CHAT_DEPLOYMENT }}
           AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}
           AZURE_OPENAI_EMBEDDING_MODEL: ${{ vars.AZURE_OPENAI_EMBEDDING_MODEL }}
           AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_NAME: ${{ vars.AZURE_OPENAI_NAME }}
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AZUREAI_RESOURCE_GROUP: ${{ vars.AZUREAI_RESOURCE_GROUP }}               
+          AZUREAI_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}               
           AZURE_SEARCH_ENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
           AZURE_SEARCH_INDEX_SAMPLE_DATA: ${{ vars.AZURE_SEARCH_INDEX_SAMPLE_DATA }}
           AZURE_SEARCH_NAME: ${{ vars.AZURE_SEARCH_NAME }}
@@ -59,13 +70,91 @@ jobs:
           AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
 
   qa-flow-evaluation:
+    needs: [setup-env-job]
+    runs-on: ubuntu-latest
+    environment: qa
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Login to Azure CLI
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}           
+
+      - name: AI-Based quality evaluation
+        env: 
+          AZURE_OPENAI_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_ENDPOINT}}
+          AZURE_OPENAI_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT}}
+          AZUREAI_PROJECT_NAME: ${{needs.setup-env-job.outputs.AZUREAI_PROJECT_NAME}}
+          AZURE_OPENAI_API_VERSION: ${{needs.setup-env-job.outputs.AZURE_OPENAI_API_VERSION}}
+          AZURE_SUBSCRIPTION_ID: ${{needs.setup-env-job.outputs.AZURE_SUBSCRIPTION_ID}}
+          AZURE_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}}
+          AZURE_OPENAI_NAME: ${{needs.setup-env-job.outputs.AZURE_OPENAI_NAME}}
+          LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}
+          AZURE_CONTAINER_REGISTRY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REGISTRY_NAME}}
+          AZURE_CONTAINER_REPOSITORY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME}}
+          AZURE_SEARCH_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_SEARCH_ENDPOINT}}
+          AZURE_OPENAI_CHAT_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT}}
+          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_DEPLOYMENT}}
+          AZURE_OPENAI_EMBEDDING_MODEL: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_MODEL}}
+          PROMPTFLOW_WORKER_NUM: ${{needs.setup-env-job.outputs.PROMPTFLOW_WORKER_NUM}}
+          PROMPTFLOW_SERVING_ENGINE: ${{needs.setup-env-job.outputs.PROMPTFLOW_SERVING_ENGINE}}
+          AZURE_APP_SERVICE_NAME: ${{needs.setup-env-job.outputs.AZURE_APP_SERVICE_NAME}}
+          AZURE_APP_SERVICE_PLAN_NAME: ${{needs.setup-env-job.outputs.AZURE_APP_SERVICE_PLAN_NAME}}      
+        run: |
+            echo "Run AI-Based flow evaluation"
+            echo "AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP}"
+            echo "AZURE_OPENAI_NAME=${AZURE_OPENAI_NAME}"
+            export AZURE_OPENAI_API_KEY=$(az cognitiveservices account keys list --resource-group ${AZURE_RESOURCE_GROUP} --name ${AZURE_OPENAI_NAME} --query "key1" --output tsv)
+            # python evaluations/flow_eval.py
+            python evaluations/qa_quality_eval.py
+        shell: bash
+
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v4
+        with:
+            name: flow-eval-results
+            path: qa_flow_quality_eval.json.json
+
+  qa-safety-evaluation:
     needs: setup-env-job    
     runs-on: ubuntu-latest
     environment: qa
     steps:        
-      - name: Evaluate Flow
+      - name: AI-Based safety evaluation
+        env:
+          AZUREAI_PROJECT_NAME: ${{needs.setup-env-job.outputs.AZUREAI_PROJECT_NAME}}
+          AZURE_SUBSCRIPTION_ID: ${{needs.setup-env-job.outputs.AZURE_SUBSCRIPTION_ID}}
+          AZUREAI_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}} 
+          AZURE_LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}
+          PREFIX: ${{ github.sha }}
         run: |
-          echo "Run QA AI-Based Flow evaluation"
+          echo "Run Automated Adversarial Testing"
+          export PYTHONPATH=./src:$PYTHONPATH
+          python evaluations/safety_eval.py
+
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v4
+        with:
+            name: adversarial-test
+            path: adversarial_test.json
+
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v4
+        with:
+            name: adversarial-test-w-jailbreak
+            path: adversarial_test_w_jailbreak.json
 
   integration-testing:
     needs: [setup-env-job, qa-flow-evaluation]

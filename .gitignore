@@ -1,5 +1,9 @@
 local/
 dist/
+.env
+.promptflow/
+*.xlsx
+junit/
 
 # Python
 *.py[cod]
