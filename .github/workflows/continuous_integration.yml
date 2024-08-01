@@ -67,7 +67,7 @@ jobs:
       AZURE_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}
       AZUREAI_RESOURCE_GROUP: ${{ steps.config-env.outputs.AZURE_RESOURCE_GROUP }}      
       AZURE_SEARCH_ENDPOINT: ${{ steps.config-env.outputs.AZURE_SEARCH_ENDPOINT }}
-      AZURE_SEARCH_INDEX_SAMPLE_DATA: ${{ steps.config-env.outputs.AZURE_SEARCH_INDEX_SAMPLE_DATA }}
+      LOAD_AZURE_SEARCH_SAMPLE_DATA: ${{ steps.config-env.outputs.LOAD_AZURE_SEARCH_SAMPLE_DATA }}
       AZURE_SEARCH_NAME: ${{ steps.config-env.outputs.AZURE_SEARCH_NAME }}
       AZURE_SUBSCRIPTION_ID: ${{ steps.config-env.outputs.AZURE_SUBSCRIPTION_ID }} 
       PROMPTFLOW_SERVING_ENGINE: ${{ steps.config-env.outputs.PROMPTFLOW_SERVING_ENGINE }}
@@ -102,7 +102,7 @@ jobs:
         AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         AZUREAI_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}        
         AZURE_SEARCH_ENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
-        AZURE_SEARCH_INDEX_SAMPLE_DATA: "false" # It's already populated during PR
+        LOAD_AZURE_SEARCH_SAMPLE_DATA: "false" # It's already populated during PR
         AZURE_SEARCH_NAME: ${{ vars.AZURE_SEARCH_NAME }}
         PROMPTFLOW_SERVING_ENGINE: ${{ vars.PROMPTFLOW_SERVING_ENGINE }}
         PROMPTFLOW_WORKER_NUM: ${{ vars.PROMPTFLOW_WORKER_NUM }}

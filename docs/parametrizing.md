@@ -25,7 +25,7 @@ All parameters are optional except for `AZURE_ENV_NAME`, `AZURE_LOCATION`, and `
 | `AZURE_OPENAI_NAME`                | The name of the OpenAI resource.                    | random                                             |
 | `AZURE_SEARCH_NAME`                | The name of the Search Service.                     | random                                             |
 | `AZURE_STORAGE_ACCOUNT_NAME`       | The name of the Storage Account.                    | random                                             |
-| `AZURE_SEARCH_INDEX_SAMPLE_DATA`   | The sample data for the Azure Search index.         | true                                               |
+| `LOAD_AZURE_SEARCH_SAMPLE_DATA`   | The sample data for the Azure Search index.         | true                                               |
 | `PROMPTFLOW_WORKER_NUM`            | The number of PromptFlow workers.                   | 1                                                  |
 | `PROMPTFLOW_SERVING_ENGINE`        | The PromptFlow serving engine.                      | fastapi                                            |
 

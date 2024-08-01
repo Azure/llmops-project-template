@@ -287,4 +287,4 @@ output AZURE_STORAGE_ACCOUNT_NAME string = ai.outputs.storageAccountName
 
 output PROMPTFLOW_WORKER_NUM string = _promptFlowWorkerNum
 output PROMPTFLOW_SERVING_ENGINE string = _promptFlowServingEngine
-output AZURE_SEARCH_INDEX_SAMPLE_DATA string = _azureSearchIndexSampleData
+output LOAD_AZURE_SEARCH_SAMPLE_DATA string = _azureSearchIndexSampleData

@@ -87,7 +87,7 @@ runs:
           "AZURE_PRINCIPAL_ID" 
           "AZURE_RESOURCE_GROUP"
           "AZURE_SEARCH_ENDPOINT" 
-          "AZURE_SEARCH_INDEX_SAMPLE_DATA"
+          "LOAD_AZURE_SEARCH_SAMPLE_DATA"
           "AZURE_SEARCH_NAME" 
           "AZURE_STORAGE_ACCOUNT_NAME" 
           "PROMPTFLOW_SERVING_ENGINE" 
@@ -207,7 +207,7 @@ runs:
 
         # Load sample data if needed
 
-        indexSampleData=$([ -z "$AZURE_SEARCH_INDEX_SAMPLE_DATA" ] || [ "$AZURE_SEARCH_INDEX_SAMPLE_DATA" == "true" ] && echo true || echo false)
+        indexSampleData=$([ -z "$LOAD_AZURE_SEARCH_SAMPLE_DATA" ] || [ "$LOAD_AZURE_SEARCH_SAMPLE_DATA" == "true" ] && echo true || echo false)
         if [ $indexSampleData = "true" ]; then
           echo "🔶 | Running post-provisioning script to populate sample data." 
           ./infra/hooks/postprovision.sh 
@@ -274,9 +274,9 @@ outputs:
   AZURE_SEARCH_ENDPOINT:
     description: 'Azure Search Endpoint'
     value: ${{ steps.setup-env-step.outputs.AZURE_SEARCH_ENDPOINT }}
-  AZURE_SEARCH_INDEX_SAMPLE_DATA:
+  LOAD_AZURE_SEARCH_SAMPLE_DATA:
     description: 'Azure Search Index Sample Data'
-    value: ${{ steps.setup-env-step.outputs.AZURE_SEARCH_INDEX_SAMPLE_DATA }}
+    value: ${{ steps.setup-env-step.outputs.LOAD_AZURE_SEARCH_SAMPLE_DATA }}
   AZURE_SEARCH_NAME:
     description: 'Azure Search Name'
     value: ${{ steps.setup-env-step.outputs.AZURE_SEARCH_NAME }}

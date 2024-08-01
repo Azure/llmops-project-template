@@ -60,7 +60,7 @@
       "value": "${AZURE_STORAGE_ACCOUNT_NAME}"
     },
     "azureSearchIndexSampleData": {
-      "value": "${AZURE_SEARCH_INDEX_SAMPLE_DATA}"
+      "value": "${LOAD_AZURE_SEARCH_SAMPLE_DATA}"
     },
     "promptFlowWorkerNum": {
       "value": "${PROMPTFLOW_WORKER_NUM}"
