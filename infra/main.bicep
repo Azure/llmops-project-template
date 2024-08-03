@@ -143,6 +143,16 @@ module appService  'core/host/appservice.bicep'  = if (_deployAppService) {
   }
 }
 
+module storageBlobDataReaderRole 'core/security/role.bicep' = {
+  scope: resourceGroup(!empty(aiResourceGroupName) ? aiResourceGroupName : rg.name)
+  name: 'storage-blob-data-reader-role'
+  params: {
+    principalId: ai.outputs.projectPrincipalId
+    roleDefinitionId: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Reader role
+    principalType: 'ServicePrincipal' // Replace with the correct principal type if needed
+  }
+}
+
 module userAcrRolePush 'core/security/role.bicep' = {
   name: 'user-acr-role-push'
   scope: rg
