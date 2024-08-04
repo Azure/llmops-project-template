@@ -39,8 +39,7 @@ echo "{\"subscription_id\": \"$subscriptionId\", \"resource_group\": \"$resource
 echo 'Installing dependencies from "requirements.txt"'
 pip cache purge > /dev/null
 pip install --upgrade pip setuptools > /dev/null
-python -m pip install -r requirements.txt > /dev/null
-
+python -m pip install --upgrade --force-reinstall -r requirements.txt > /dev/null
 echo "Populating sample data ...."
 python data/sample-documents-indexing.py > /dev/null
 
