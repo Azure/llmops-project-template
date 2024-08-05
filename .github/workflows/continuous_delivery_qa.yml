@@ -102,6 +102,7 @@ jobs:
           AZURE_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}}
           AZURE_OPENAI_NAME: ${{needs.setup-env-job.outputs.AZURE_OPENAI_NAME}}
           LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}
+          AZURE_LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}          
           AZURE_CONTAINER_REGISTRY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REGISTRY_NAME}}
           AZURE_CONTAINER_REPOSITORY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME}}
           AZURE_SEARCH_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_SEARCH_ENDPOINT}}
@@ -151,14 +152,31 @@ jobs:
 
       - name: AI-Based safety evaluation
         env:
-          AZUREAI_PROJECT_NAME: ${{needs.setup-env-job.outputs.AZUREAI_PROJECT_NAME}}
-          AZURE_SUBSCRIPTION_ID: ${{needs.setup-env-job.outputs.AZURE_SUBSCRIPTION_ID}}
           AZUREAI_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}} 
           AZURE_LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}
+          AZURE_OPENAI_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_ENDPOINT}}
+          AZURE_OPENAI_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT}}
+          AZUREAI_PROJECT_NAME: ${{needs.setup-env-job.outputs.AZUREAI_PROJECT_NAME}}
+          AZURE_OPENAI_API_VERSION: ${{needs.setup-env-job.outputs.AZURE_OPENAI_API_VERSION}}
+          AZURE_SUBSCRIPTION_ID: ${{needs.setup-env-job.outputs.AZURE_SUBSCRIPTION_ID}}
+          AZURE_RESOURCE_GROUP: ${{needs.setup-env-job.outputs.AZURE_RESOURCE_GROUP}}
+          AZURE_OPENAI_NAME: ${{needs.setup-env-job.outputs.AZURE_OPENAI_NAME}}
+          LOCATION: ${{needs.setup-env-job.outputs.AZURE_LOCATION}}
+          AZURE_CONTAINER_REGISTRY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REGISTRY_NAME}}
+          AZURE_CONTAINER_REPOSITORY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME}}
+          AZURE_SEARCH_ENDPOINT: ${{needs.setup-env-job.outputs.AZURE_SEARCH_ENDPOINT}}
+          AZURE_OPENAI_CHAT_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_CHAT_DEPLOYMENT}}
+          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_DEPLOYMENT}}
+          AZURE_OPENAI_EMBEDDING_MODEL: ${{needs.setup-env-job.outputs.AZURE_OPENAI_EMBEDDING_MODEL}}
+          PROMPTFLOW_WORKER_NUM: ${{needs.setup-env-job.outputs.PROMPTFLOW_WORKER_NUM}}
+          PROMPTFLOW_SERVING_ENGINE: ${{needs.setup-env-job.outputs.PROMPTFLOW_SERVING_ENGINE}}
+          AZURE_APP_SERVICE_NAME: ${{needs.setup-env-job.outputs.AZURE_APP_SERVICE_NAME}}
+          AZURE_APP_SERVICE_PLAN_NAME: ${{needs.setup-env-job.outputs.AZURE_APP_SERVICE_PLAN_NAME}}
           PREFIX: ${{ github.sha }}
         run: |
           echo "Run Automated Adversarial Testing"
           export PYTHONPATH=./src:$PYTHONPATH
+          export AZURE_OPENAI_API_KEY=$(az cognitiveservices account keys list --resource-group ${AZURE_RESOURCE_GROUP} --name ${AZURE_OPENAI_NAME} --query "key1" --output tsv)          
           python evaluations/safety_eval.py
 
       - name: Upload evaluation results
@@ -174,7 +192,7 @@ jobs:
             path: adversarial_test_w_jailbreak.json
 
   integration-testing:
-    needs: [setup-env-job, qa-flow-evaluation]
+    needs: [setup-env-job, qa-flow-evaluation, qa-safety-evaluation]
     runs-on: ubuntu-latest
     environment: qa
     steps:

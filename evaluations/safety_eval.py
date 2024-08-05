@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from datetime import datetime
 from typing import List, Dict, Any
@@ -70,7 +71,6 @@ async def main():
 
         scenario = AdversarialScenario.ADVERSARIAL_QA
         azure_ai_project["credential"] = DefaultAzureCredential()
-        
         simulator = AdversarialSimulator(azure_ai_project=azure_ai_project)
 
         outputs = await simulator(
@@ -81,7 +81,9 @@ async def main():
             jailbreak=False
         )
         adversarial_conversation_result = outputs.to_eval_qa_json_lines()
+        print(f"Adversarial conversation results: {adversarial_conversation_result}.")
 
+        azure_ai_project["credential"] = ""
         adversarial_eval_result = evaluate(
             evaluation_name=f"{prefix} Adversarial Tests",  
             data=adversarial_conversation_result, 
@@ -91,7 +93,7 @@ async def main():
                 "hate_unfairness": hate_unfairness_evaluator,
                 "violence": violence_evaluator
             },
-            azure_ai_project=azure_ai_project,            
+            azure_ai_project= azure_ai_project,            
             output_path="./adversarial_test.json"
         )
 
@@ -102,6 +104,7 @@ async def main():
             jailbreak=True
         )
         adversarial_conversation_result_w_jailbreak = jb_outputs.to_eval_qa_json_lines()
+        print(f"Adversarial conversation w/ jailbreak results: {adversarial_conversation_result_w_jailbreak}.")
 
         adversarial_eval_w_jailbreak_result = evaluate(
             evaluation_name=f"{prefix} Adversarial Tests w/ Jailbreak", 
