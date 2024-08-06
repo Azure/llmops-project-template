@@ -153,55 +153,16 @@ module storageBlobDataReaderRoleToProject 'core/security/role.bicep' = {
   }
 }
 
-module storageBlobDataContributorRoleToProject 'core/security/role.bicep' = {
+module storageBlobDataReaderRoleToUser 'core/security/role.bicep' = {
   scope: rg
-  name: 'storage-blob-data-contributor-role'
+  name: 'user-storage-blob-data-reader-role'
   params: {
-    principalId: ai.outputs.projectPrincipalId
-    roleDefinitionId: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor role
-    principalType: 'ServicePrincipal' // Replace with the correct principal type if needed
-  }
-}
-
-module storageBlobDataReaderRoleToHub 'core/security/role.bicep' = {
-  scope: rg
-  name: 'storage-blob-data-reader-role-hub'
-  params: {
-    principalId: ai.outputs.hubPrincipalId
+    principalId: principalId
     roleDefinitionId: '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1' // Storage Blob Data Reader role
     principalType: 'ServicePrincipal' // Replace with the correct principal type if needed
   }
 }
 
-module storageBlobDataContributorRoleToHub 'core/security/role.bicep' = {
-  scope: rg
-  name: 'storage-blob-data-contributor-role-hub'
-  params: {
-    principalId: ai.outputs.hubPrincipalId
-    roleDefinitionId: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor role
-    principalType: 'ServicePrincipal' // Replace with the correct principal type if needed
-  }
-}
-
-// module storageBlobDataReaderRoleToUser 'core/security/role.bicep' = {
-//   scope: rg
-//   name: 'user-storage-blob-data-reader-role'
-//   params: {
-//     principalId: principalId
-//     roleDefinitionId: '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1' // Storage Blob Data Reader role
-//     principalType: 'ServicePrincipal' // Replace with the correct principal type if needed
-//   }
-// }
-
-// module storageBlobDataContributorRoleToUser 'core/security/role.bicep' = {
-//   scope: rg
-//   name: 'user-storage-blob-data-contributor-role'
-//   params: {
-//     principalId: principalId
-//     roleDefinitionId: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor role
-//     principalType: 'ServicePrincipal' // Replace with the correct principal type if needed
-//   }
-// }
 
 module userAcrRolePush 'core/security/role.bicep' = {
   name: 'user-acr-role-push'
