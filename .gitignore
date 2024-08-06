@@ -4,6 +4,7 @@ dist/
 .promptflow/
 *.xlsx
 junit/
+responses.jsonl
 
 # Python
 *.py[cod]
