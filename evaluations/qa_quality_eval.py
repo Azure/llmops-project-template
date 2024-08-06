@@ -2,6 +2,7 @@ import os
 import json
 from datetime import datetime
 
+from azure.identity import DefaultAzureCredential
 from promptflow.client import PFClient
 from promptflow.core import AzureOpenAIModelConfiguration
 from promptflow.evals.evaluate import evaluate
@@ -78,6 +79,7 @@ def main():
 
     data = "./responses.jsonl"  # path to the data file
 
+    azure_ai_project["credential"] = DefaultAzureCredential()
     result = evaluate(
         evaluation_name=f"{prefix} Quality Evaluation",
         data=data,
