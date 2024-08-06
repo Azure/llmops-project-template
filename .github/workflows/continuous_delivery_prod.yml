@@ -285,4 +285,4 @@ jobs:
     steps:
       - name: Smoke Tests
         run: |
-          curl https://${{AZURE_APP_SERVICE_NAME}}.azurewebsites.net/score --data '{"question":"What is the size of the moon?", "chat_history":[]}' -X POST  -H "Content-Type: application/json"
+          curl https://${AZURE_APP_SERVICE_NAME}.azurewebsites.net/score --data '{"question":"What is the size of the moon?", "chat_history":[]}' -X POST  -H "Content-Type: application/json"
