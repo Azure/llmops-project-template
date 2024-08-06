@@ -79,7 +79,6 @@ def main():
 
     data = "./responses.jsonl"  # path to the data file
 
-    azure_ai_project["credential"] = DefaultAzureCredential()
     result = evaluate(
         evaluation_name=f"{prefix} Quality Evaluation",
         data=data,
@@ -89,7 +88,7 @@ def main():
             "Relevance": relevance_evaluator,
             "Coherence": coherence_evaluator
         },
-        azure_ai_project = azure_ai_project,
+        # azure_ai_project = azure_ai_project,
         output_path="./qa_flow_quality_eval.json"
     )
 
