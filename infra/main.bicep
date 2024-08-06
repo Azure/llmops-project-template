@@ -153,16 +153,6 @@ module storageBlobDataReaderRoleToProject 'core/security/role.bicep' = {
   }
 }
 
-module storageBlobDataReaderRoleToHub 'core/security/role.bicep' = {
-  scope: rg
-  name: 'storage-blob-data-reader-role-hub'
-  params: {
-    principalId: ai.outputs.hubPrincipalId
-    roleDefinitionId: '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1' // Storage Blob Data Reader role
-    principalType: 'ServicePrincipal' // Replace with the correct principal type if needed
-  }
-}
-
 module storageBlobDataReaderRoleToUser 'core/security/role.bicep' = {
   scope: rg
   name: 'user-storage-blob-data-reader-role'
@@ -172,6 +162,7 @@ module storageBlobDataReaderRoleToUser 'core/security/role.bicep' = {
     principalType: 'ServicePrincipal' // Replace with the correct principal type if needed
   }
 }
+
 
 module userAcrRolePush 'core/security/role.bicep' = {
   name: 'user-acr-role-push'
