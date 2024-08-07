@@ -83,19 +83,34 @@ async def main():
         adversarial_conversation_result = outputs.to_eval_qa_json_lines()
         print(f"Adversarial conversation results: {adversarial_conversation_result}.")
 
-        azure_ai_project["credential"] = ""
-        adversarial_eval_result = evaluate(
-            evaluation_name=f"{prefix} Adversarial Tests",  
-            data=adversarial_conversation_result, 
-            evaluators={
-                "sexual": sexual_evaluator,
-                "self_harm": self_harm_evaluator,
-                "hate_unfairness": hate_unfairness_evaluator,
-                "violence": violence_evaluator
-            },
-            azure_ai_project= azure_ai_project,            
-            output_path="./adversarial_test.json"
+        try:
+            azure_ai_project["credential"] = ""
+            adversarial_eval_result = evaluate(
+                evaluation_name=f"{prefix} Adversarial Tests",  
+                data=adversarial_conversation_result, 
+                evaluators={
+                    "sexual": sexual_evaluator,
+                    "self_harm": self_harm_evaluator,
+                    "hate_unfairness": hate_unfairness_evaluator,
+                    "violence": violence_evaluator
+                },
+                azure_ai_project= azure_ai_project,            
+                output_path="./adversarial_test.json"
         )
+        except Exception as e:
+            print(f"An error occurred during evaluation: {e}\n Retrying without reporting results in Azure AI Project.")
+            adversarial_eval_result = evaluate(
+                evaluation_name=f"{prefix} Adversarial Tests",  
+                data=adversarial_conversation_result, 
+                evaluators={
+                    "sexual": sexual_evaluator,
+                    "self_harm": self_harm_evaluator,
+                    "hate_unfairness": hate_unfairness_evaluator,
+                    "violence": violence_evaluator
+                },
+                output_path="./adversarial_test.json"
+        )        
+        
 
         jb_outputs = await simulator(
             scenario=scenario, 
@@ -106,18 +121,32 @@ async def main():
         adversarial_conversation_result_w_jailbreak = jb_outputs.to_eval_qa_json_lines()
         print(f"Adversarial conversation w/ jailbreak results: {adversarial_conversation_result_w_jailbreak}.")
 
-        adversarial_eval_w_jailbreak_result = evaluate(
-            evaluation_name=f"{prefix} Adversarial Tests w/ Jailbreak", 
-            data=adversarial_conversation_result_w_jailbreak,
-            evaluators={
-                "sexual": sexual_evaluator,
-                "self_harm": self_harm_evaluator,
-                "hate_unfairness": hate_unfairness_evaluator,
-                "violence": violence_evaluator
-            },
-            azure_ai_project=azure_ai_project,
-            output_path="./adversarial_test_w_jailbreak.json"
-        )
+        try:
+            adversarial_eval_w_jailbreak_result = evaluate(
+                evaluation_name=f"{prefix} Adversarial Tests w/ Jailbreak", 
+                data=adversarial_conversation_result_w_jailbreak,
+                evaluators={
+                    "sexual": sexual_evaluator,
+                    "self_harm": self_harm_evaluator,
+                    "hate_unfairness": hate_unfairness_evaluator,
+                    "violence": violence_evaluator
+                },
+                azure_ai_project=azure_ai_project,
+                output_path="./adversarial_test_w_jailbreak.json"
+            )
+        except Exception as e:
+            print(f"An error occurred during evaluation: {e}\n Retrying without reporting results in Azure AI Project.")            
+            adversarial_eval_w_jailbreak_result = evaluate(
+                evaluation_name=f"{prefix} Adversarial Tests w/ Jailbreak", 
+                data=adversarial_conversation_result_w_jailbreak,
+                evaluators={
+                    "sexual": sexual_evaluator,
+                    "self_harm": self_harm_evaluator,
+                    "hate_unfairness": hate_unfairness_evaluator,
+                    "violence": violence_evaluator
+                },
+                output_path="./adversarial_test_w_jailbreak.json"
+            )
 
 if __name__ == '__main__':
     import promptflow as pf

@@ -93,7 +93,7 @@ def main():
             output_path="./qa_flow_quality_eval.json"
         )
     except Exception as e:
-        print(f"An error occurred during evaluation: {e}\n Retrying without Azure AI Project.")
+        print(f"An error occurred during evaluation: {e}\n Retrying without reporting results in Azure AI Project.")
         result = evaluate(
             evaluation_name=f"{prefix} Quality Evaluation",
             data=data,
