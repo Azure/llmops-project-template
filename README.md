@@ -12,7 +12,6 @@ The following diagram provides an overview of the solution's architecture:
 
 To deliver the solution effectively, a set of Azure resources is necessary. The following table outlines the required resources and their specific purposes for the project.
 
-
 | **Resource Name**       | **Purpose**                                                         |
 |-------------------------|---------------------------------------------------------------------|
 | **AI Hub**              | Centralized platform for managing AI solutions.                     |
@@ -26,6 +25,10 @@ To deliver the solution effectively, a set of Azure resources is necessary. The 
 | **AI Search**           | Implement Vector Search for the RAG retrieval step.                 |
 | **App Service**         | Host and manage your app.                                           |
 | **App Service Plan**    | Provide the resources that your App Service app needs to run.       |
+
+> **Note:** The **Premium V3 SKU** is required for the Azure App Service Plan to ensure the necessary performance and scalability for the application.
+
+
 
 The following deployments will be created in the Azure OpenAI Service:
 

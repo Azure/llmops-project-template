@@ -79,19 +79,32 @@ def main():
 
     data = "./responses.jsonl"  # path to the data file
 
-    result = evaluate(
-        evaluation_name=f"{prefix} Quality Evaluation",
-        data=data,
-        evaluators={
-            "Fluency": fluency_evaluator,
-            "Groundedness": groundedness_evaluator,
-            "Relevance": relevance_evaluator,
-            "Coherence": coherence_evaluator
-        },
-        # azure_ai_project = azure_ai_project,
-        output_path="./qa_flow_quality_eval.json"
-    )
-
+    try:
+        result = evaluate(
+            evaluation_name=f"{prefix} Quality Evaluation",
+            data=data,
+            evaluators={
+                "Fluency": fluency_evaluator,
+                "Groundedness": groundedness_evaluator,
+                "Relevance": relevance_evaluator,
+                "Coherence": coherence_evaluator
+            },
+            azure_ai_project=azure_ai_project,
+            output_path="./qa_flow_quality_eval.json"
+        )
+    except Exception as e:
+        print(f"An error occurred during evaluation: {e}\n Retrying without Azure AI Project.")
+        result = evaluate(
+            evaluation_name=f"{prefix} Quality Evaluation",
+            data=data,
+            evaluators={
+                "Fluency": fluency_evaluator,
+                "Groundedness": groundedness_evaluator,
+                "Relevance": relevance_evaluator,
+                "Coherence": coherence_evaluator
+            },
+            output_path="./qa_flow_quality_eval.json"
+        )        
 
 if __name__ == '__main__':
     import promptflow as pf
