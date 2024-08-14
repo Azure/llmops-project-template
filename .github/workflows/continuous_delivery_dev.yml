@@ -1,8 +1,11 @@
 name: CD Dev Pipeline
 
 on:
-  workflow_dispatch:
-  
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types:
+      - success
+
 jobs:
   
   setup-env-job:
@@ -96,7 +99,7 @@ jobs:
         run: | 
           # Deploy Flow
           echo "🔶 | Deploying to Azure"
-          image_tag="${AZURE_CONTAINER_REPOSITORY_NAME}:${{ github.sha }}"
+          image_tag="${AZURE_CONTAINER_REPOSITORY_NAME}:develop-${{ github.sha }}"
           name="${AZURE_APP_SERVICE_NAME}"
           service_plan_name="${AZURE_APP_SERVICE_PLAN_NAME}"
           subscription="${AZURE_SUBSCRIPTION_ID}"

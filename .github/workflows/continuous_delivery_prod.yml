@@ -1,14 +1,16 @@
 name: CD Prod Pipeline
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
       
 jobs:
-
   setup-env-job:
-    if: ${{ github.repository != 'Azure/llmops-project-template' }}        
+    if: ${{ github.repository != 'Azure/llmops-project-template' }} && 
+        github.event.pull_request.merged == true && 
+        startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     environment: prod
     outputs:
@@ -62,13 +64,14 @@ jobs:
     if: ${{ github.repository != 'Azure/llmops-project-template' }}    
     runs-on: ubuntu-latest
     environment: prod
+    needs: [setup-env-job]
     steps:      
       - name: Integration Tests
         run: |
           echo "Run PROD Integration Tests"
 
   get-source-acr-and-repository:
-    needs: [setup-env-job, setup-env-job, integration-testing]
+    needs: [setup-env-job, integration-testing]
     runs-on: ubuntu-latest
     environment: qa
     env:
@@ -115,7 +118,7 @@ jobs:
           AZURE_CONTAINER_REGISTRY_NAME=$(azd env get-values -e $AZURE_ENV_NAME | grep AZURE_CONTAINER_REGISTRY_NAME | cut -d'=' -f2 | tr -d '"' || true)
           echo "SOURCE_REGISTRY=$AZURE_CONTAINER_REGISTRY_NAME" >> "$GITHUB_OUTPUT" 
           echo "SOURCE_REGISTRY=$AZURE_CONTAINER_REGISTRY_NAME"      
-          
+
 
   import-image:
     runs-on: ubuntu-latest
@@ -136,12 +139,25 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Import image
-        run: |        
-          az acr import -n $AZURE_CONTAINER_REGISTRY_NAME --source $SOURCE_REGISTRY.azurecr.io/$AZURE_CONTAINER_REPOSITORY_NAME:${{ github.sha }}
-          
-          # in case ACR is in another subscription: 
-          # az acr import -n myregistry --source sourcerepository:sourcetag -t targetrepository:targettag -r /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sourceResourceGroup/providers/Microsoft.ContainerRegistry/registries/sourceRegistry
+        run: |
+          # release branch version
+          release_commit_sha="${{ github.event.pull_request.head.sha }}"
+          release_branch_name="${{ github.event.pull_request.head.ref }}"
+          release_version=$(echo $release_branch_name | sed 's/release\///')
+          source_image_tag="${release_version}-rc-${release_commit_sha}"
+          # current (merged) commit sha
+          commit_sha="${{ github.sha }}"          
+          image_tag="${release_version}-${commit_sha}"
 
+          if az acr repository show-tags -n $SOURCE_REGISTRY --repository $AZURE_CONTAINER_REPOSITORY_NAME --query "contains(@, '${source_image_tag}')" | grep -q true; then
+            echo "✅ | Image ${source_image_tag} exists in QA ACR."
+            az acr import -n $AZURE_CONTAINER_REGISTRY_NAME --source $SOURCE_REGISTRY.azurecr.io/$AZURE_CONTAINER_REPOSITORY_NAME:$source_image_tag --image $AZURE_CONTAINER_REPOSITORY_NAME:$image_tag --force
+            # in case ACR is in another subscription: 
+            # az acr import -n myregistry --source sourcerepository:sourcetag -t targetrepository:targettag -r /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sourceResourceGroup/providers/Microsoft.ContainerRegistry/registries/sourceRegistry
+            else
+            echo "❌ | Image ${source_image_tag} does not exist in QA ACR. You need to create a hotfix branch for the fix if you want to add changes outside the release."
+            exit 1
+          fi
 
   deploy-flow:
     runs-on: ubuntu-latest
@@ -181,16 +197,20 @@ jobs:
         run: | 
           # Deploy Flow
           echo "🔶 | Deploying to Azure"
-          image_tag="${AZURE_CONTAINER_REPOSITORY_NAME}:${{ github.sha }}"
+          release_branch_name="${{ github.event.pull_request.head.ref }}"
+          release_version=$(echo $release_branch_name | sed 's/release\///')
+          commit_sha="${{ github.sha }}"          
+          full_image_tag="${AZURE_CONTAINER_REPOSITORY_NAME}:${release_version}-${commit_sha}"
+
           name="${AZURE_APP_SERVICE_NAME}"
           service_plan_name="${AZURE_APP_SERVICE_PLAN_NAME}"
           subscription="${AZURE_SUBSCRIPTION_ID}"
           resource_group="${AZURE_RESOURCE_GROUP}"
           registry_name="${AZURE_CONTAINER_REGISTRY_NAME}"
           full_registry_name="${registry_name}.azurecr.io"
-          acr_image_tag=$full_registry_name/$image_tag
+          acr_image_tag=$full_registry_name/$full_image_tag
     
-          echo "Image Tag: $image_tag"
+          echo "Full Image Tag: $full_image_tag"
           echo "ACR Image Tag: $acr_image_tag"          
           echo "App Service Name: $name"
           echo "Service Plan Name: $service_plan_name"
@@ -285,4 +305,4 @@ jobs:
     steps:
       - name: Smoke Tests
         run: |
-          curl https://${AZURE_APP_SERVICE_NAME}.azurewebsites.net/score --data '{"question":"What is the size of the moon?", "chat_history":[]}' -X POST  -H "Content-Type: application/json"
+          curl https://${AZURE_APP_SERVICE_NAME}.azurewebsites.net/score --data '{"question":"What is the size of the moon?", "chat_history":[]}' -X POST  -H "Content-Type: application/json"          

@@ -190,7 +190,7 @@ jobs:
         with:
             name: adversarial-test-w-jailbreak
             path: adversarial_test_w_jailbreak.json
-
+ 
   integration-testing:
     needs: [setup-env-job, qa-flow-evaluation, qa-safety-evaluation]
     runs-on: ubuntu-latest
@@ -268,13 +268,90 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Import image
-        run: |        
-          az acr import -n $AZURE_CONTAINER_REGISTRY_NAME --source $SOURCE_REGISTRY.azurecr.io/$AZURE_CONTAINER_REPOSITORY_NAME:${{ github.sha }}
-          
+      - name: Check if image exists
+        id: check_image
+        run: |
+          if az acr repository show-tags -n $SOURCE_REGISTRY --repository $AZURE_CONTAINER_REPOSITORY_NAME --query "contains(@, 'develop-${{ github.sha }}')" | grep -q true; then
+            echo "✅ | Image exists in Dev ACR."
+            echo "IMAGE_EXISTS=true" >> $GITHUB_OUTPUT
+            else
+            echo "❌ | Image does not exist. Building a new image."
+            echo "This should be done for bug fix scenarios only, don't forget to merge back to develop branch."
+            echo "IMAGE_EXISTS=false" >> $GITHUB_OUTPUT
+          fi
+
+
+      - name: Get release version name
+        id: get_release_version
+        run: |
+          RELEASE_VERSION=${GITHUB_REF#refs/heads/release/}
+          echo "RELEASE_VERSION=$RELEASE_VERSION-rc" >> $GITHUB_ENV
+          echo "RELEASE_VERSION is $RELEASE_VERSION-rc"
+
+      ## Happy path: Import image from dev registry
+
+      - name: Import image from dev registry
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'true'
+        run: |
+          echo "Image already IMAGE_EXISTS. retag with release version and import to qa acr."        
+          az acr import -n $AZURE_CONTAINER_REGISTRY_NAME \
+            --source $SOURCE_REGISTRY.azurecr.io/$AZURE_CONTAINER_REPOSITORY_NAME:develop-${{ github.sha }} \
+            --image $AZURE_CONTAINER_REPOSITORY_NAME:$RELEASE_VERSION-${{ github.sha }} --force
+
           # in case ACR is in another subscription: 
           # az acr import -n myregistry --source sourcerepository:sourcetag -t targetrepository:targettag -r /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sourceResourceGroup/providers/Microsoft.ContainerRegistry/registries/sourceRegistry
 
+      ## Bug fix in release branch: needs to build a new image
+
+      - name: Setup Python 
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'false'      
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.8
+
+      - name: Install Promptflow CLI
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'false'
+        run: |
+            python -m pip install --upgrade pip
+            pip install promptflow --upgrade
+            pf --version  
+
+      - name: Install required dependencies
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'false'
+        run: | 
+          pip cache purge
+          pip install --upgrade pip setuptools
+          pip install -r src/requirements.txt
+
+      - name: Create flow docker files
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'false'
+        run: |
+              # reference: https://github.com/microsoft/promptflow/tree/main/examples/tutorials/flow-deploy/azure-app-service
+              pf flow build --source src --output dist --format docker       
+
+      - name: Build and push image
+        if: steps.check_image.outputs.IMAGE_EXISTS == 'false'
+        env:
+          AZURE_CONTAINER_REGISTRY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REGISTRY_NAME}}
+          AZURE_CONTAINER_REPOSITORY_NAME: ${{needs.setup-env-job.outputs.AZURE_CONTAINER_REPOSITORY_NAME}}          
+        run: |
+            echo "✅ Building docker image..."
+            path=dist
+            image_tag=$AZURE_CONTAINER_REPOSITORY_NAME:$RELEASE_VERSION-${{ github.sha }}
+            echo "Change working directory to $path"
+            cd "$path"
+            docker build -t "$image_tag"  .             
+
+            full_registry_name="$AZURE_CONTAINER_REGISTRY_NAME.azurecr.io"
+            echo "✅ Trying to login to $full_registry_name..."
+            az acr login -n "$full_registry_name"
+
+            acr_image_tag=$full_registry_name/$image_tag
+            echo "✅ ACR image tag: $acr_image_tag"
+            docker tag "$image_tag" "$acr_image_tag"
+
+            echo "✅ Start pushing image...$acr_image_tag"
+            docker push "$acr_image_tag"          
 
   deploy-flow:
     runs-on: ubuntu-latest
@@ -314,7 +391,7 @@ jobs:
         run: | 
           # Deploy Flow
           echo "🔶 | Deploying to Azure"
-          image_tag="${AZURE_CONTAINER_REPOSITORY_NAME}:${{ github.sha }}"
+          image_tag=$AZURE_CONTAINER_REPOSITORY_NAME:$RELEASE_VERSION-${{ github.sha }}
           name="${AZURE_APP_SERVICE_NAME}"
           service_plan_name="${AZURE_APP_SERVICE_PLAN_NAME}"
           subscription="${AZURE_SUBSCRIPTION_ID}"
